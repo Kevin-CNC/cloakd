@@ -77,6 +77,43 @@
           },
           "required": ["source", "destination"]
         }
+      },
+      {
+        "name": "prompthider_filesystem",
+        "displayName": "Read/Write Workspace Files",
+        "canBeReferencedInPrompt": false,
+        "modelDescription": "Accesses workspace files and directories with operations: read, write, patch, delete, and list. Paths can include anonymized tokens and are resolved locally. Read results are anonymized before being returned to the model; writes and patches de-anonymize tokens locally before touching disk.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "enum": ["read", "write", "patch", "delete", "list"],
+              "description": "Filesystem action to perform."
+            },
+            "path": {
+              "type": "string",
+              "description": "Workspace-relative or absolute path inside an open workspace folder."
+            },
+            "content": {
+              "type": "string",
+              "description": "UTF-8 file content for write operations."
+            },
+            "old_text": {
+              "type": "string",
+              "description": "Exact text to replace for patch operations."
+            },
+            "new_text": {
+              "type": "string",
+              "description": "Replacement text for patch operations."
+            },
+            "recursive": {
+              "type": "boolean",
+              "description": "Set true to delete directories recursively."
+            }
+          },
+          "required": ["operation", "path"]
+        }
       }
     ],
     "commands": [
