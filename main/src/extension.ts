@@ -8,6 +8,7 @@ import { RuleEditorProvider } from './ui/RuleEditorProvider';
 import { MappingsViewProvider } from './ui/MappingsViewProvider';
 import { CommandExecutor } from './tools/CommandExecutor';
 import { ScpTransferTool } from './tools/ScpTransferTool';
+import { FileSystemTool } from './tools/FileSystemTool';
 import { IacScanner } from './scanner/IacScanner';
 import { PromptHiderLogger } from './utils/PromptHiderLogger';
 import * as fs from 'fs';
@@ -280,6 +281,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     commandExecutorInstance = commandExecutor;
 
     const scpTransferTool = new ScpTransferTool(commandExecutor);
+    const fileSystemTool = new FileSystemTool(anonymizationEngine, tokenManager);
+    if (activeWorkspaceFolder) {
+        fileSystemTool.setWorkspaceScope(activeWorkspaceFolder.uri);
+    }
     const mappingsViewProvider = new MappingsViewProvider(tokenManager);
 
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
@@ -347,6 +352,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         configManager.setConfigFilePath(activeRulesheetUri.fsPath);
         commandExecutor.setConfigurationScope(activeWorkspaceFolder.uri);
+        fileSystemTool.setWorkspaceScope(activeWorkspaceFolder.uri);
         PromptHiderLogger.setWorkspaceRoot(activeWorkspaceFolder.uri.fsPath);
         PromptHiderLogger.configure(activeWorkspaceFolder.uri);
 
@@ -401,7 +407,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const toolDisposable = vscode.lm.registerTool('prompthider_execute_command', commandExecutor);
     const scpToolDisposable = vscode.lm.registerTool('prompthider_scp_transfer', scpTransferTool);
-    context.subscriptions.push(toolDisposable, scpToolDisposable);
+    const fileSystemToolDisposable = vscode.lm.registerTool('prompthider_filesystem', fileSystemTool);
+    context.subscriptions.push(toolDisposable, scpToolDisposable, fileSystemToolDisposable);
 
     const chatParticipant = vscode.chat.createChatParticipant('prompthider', async (request, chatContext, stream, token) => {
         const hasRulesheet = await ensureActiveRulesheet('chat');
