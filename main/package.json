@@ -85,6 +85,7 @@
         "modelDescription": "Accesses workspace files and directories with operations: read, write, patch, delete, and list. Paths can include anonymized tokens and are resolved locally. Read results are anonymized before being returned to the model; writes and patches de-anonymize tokens locally before touching disk.",
         "inputSchema": {
           "type": "object",
+          "additionalProperties": false,
           "properties": {
             "operation": {
               "type": "string",
@@ -107,12 +108,45 @@
               "type": "string",
               "description": "Replacement text for patch operations."
             },
+            "replace_all": {
+              "type": "boolean",
+              "description": "For patch operations: when true, replaces every occurrence of old_text. Defaults to false (single, unambiguous replacement)."
+            },
             "recursive": {
               "type": "boolean",
               "description": "Set true to delete directories recursively."
             }
           },
-          "required": ["operation", "path"]
+          "required": ["operation", "path"],
+          "oneOf": [
+            {
+              "properties": {
+                "operation": { "const": "read" }
+              }
+            },
+            {
+              "properties": {
+                "operation": { "const": "list" }
+              }
+            },
+            {
+              "properties": {
+                "operation": { "const": "write" }
+              },
+              "required": ["content"]
+            },
+            {
+              "properties": {
+                "operation": { "const": "patch" }
+              },
+              "required": ["old_text", "new_text"]
+            },
+            {
+              "properties": {
+                "operation": { "const": "delete" }
+              }
+            }
+          ]
         }
       }
     ],
