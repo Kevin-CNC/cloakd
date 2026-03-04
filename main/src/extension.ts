@@ -731,11 +731,41 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.commands.registerCommand('prompthider.quickAddRule', async () => {
             const editor = vscode.window.activeTextEditor;
             const selection = editor?.selection;
-            const selectedText = selection && !selection.isEmpty
+            const selectedText = selection && !selection.isEmpty ? editor.document.getText(selection) : undefined;
+
+            if (!selectedText) {
+                return vscode.window.showInformationMessage('Select text first to create a rule from it.');
+            }
+
+            const patternToObfuscate = await vscode.window.showInputBox({
+                    prompt: "Is this the patter you want to obfuscate? Edit if needed, or leave as is.",
+                    value: selectedText, // Pre-fill with highlighted text
+                    ignoreFocusOut: true,
+                });
+
+            if (!patternToObfuscate) { 
+                vscode.window.showInformationMessage('Select text first to create a rule from it.');
+                return;
+            };
+
+            const givenReplacement = await vscode.window.showInputBox({
+                prompt: 'Enter replacement word/phrase.',
+                value: '',
+                placeHolder: '',
+                ignoreFocusOut: true
+            })
+
+            if (!givenReplacement) { 
+                vscode.window.showInformationMessage('You must provide a replacement.');
+                return;
+            };
+
+
+
             
         })
     );
-}
+}3
 
 export function deactivate(): void {
     commandExecutorInstance?.dispose();
