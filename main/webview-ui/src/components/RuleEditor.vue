@@ -4,7 +4,7 @@
       <vscode-text-field
         :value="searchQuery"
         @input="onSearchInput"
-        placeholder="Search patterns or replacements..."
+        placeholder="Search patterns, replacements, or descriptions..."
         class="search-bar"
         aria-label="Search rules"
       >
@@ -27,6 +27,9 @@
       <div class="grid-header" aria-hidden="true">
         <div class="col-pattern">Pattern (Regex)</div>
         <div class="col-replacement">Replacement</div>
+        <div class="col-type">Type</div>
+        <div class="col-enabled">Enabled</div>
+        <div class="col-description">Description</div>
         <div class="col-actions">Actions</div>
       </div>
 
@@ -42,7 +45,7 @@
         <div v-if="localRules.length > 0 && filteredRules.length === 0" class="empty-state">
           <span class="codicon codicon-search" aria-hidden="true"></span>
           <p class="empty-title">No matches</p>
-          <p class="empty-sub">Try a different search term for pattern or replacement.</p>
+          <p class="empty-sub">Try a different search term for pattern, replacement, or description.</p>
         </div>
       </Transition>
 
@@ -79,6 +82,46 @@
               placeholder="e.g., IP_TOKEN"
               class="field-full"
               aria-label="Replacement token"
+            ></vscode-text-field>
+          </div>
+
+          <div class="col-type">
+            <select
+              :value="rule.type"
+              @change="updateRule(rule.id, 'type', ($event.target as HTMLSelectElement).value)"
+              class="rule-select"
+              aria-label="Type"
+            >
+              <option value="ip">ip</option>
+              <option value="email">email</option>
+              <option value="uuid">uuid</option>
+              <option value="secret">secret</option>
+              <option value="api-key">api-key</option>
+              <option value="path">path</option>
+              <option value="jwt">jwt</option>
+              <option value="private-key">private-key</option>
+              <option value="custom">custom</option>
+            </select>
+          </div>
+
+          <div class="col-enabled">
+            <label class="checkbox-wrap" :title="rule.enabled ? 'Rule enabled' : 'Rule disabled'">
+              <input
+                type="checkbox"
+                :checked="rule.enabled"
+                @change="updateRule(rule.id, 'enabled', ($event.target as HTMLInputElement).checked)"
+                aria-label="Enabled"
+              />
+            </label>
+          </div>
+
+          <div class="col-description">
+            <vscode-text-field
+              :value="rule.description || ''"
+              @input="updateRule(rule.id, 'description', ($event.target as HTMLInputElement).value)"
+              placeholder="Optional description"
+              class="field-full"
+              aria-label="Description"
             ></vscode-text-field>
           </div>
 
@@ -184,6 +227,9 @@ export interface RuleRow {
   id: string;
   pattern: string;
   replacement: string;
+  type: 'ip' | 'email' | 'uuid' | 'secret' | 'api-key' | 'path' | 'jwt' | 'private-key' | 'custom';
+  enabled: boolean;
+  description?: string;
 }
 
 interface Toast {
@@ -205,20 +251,20 @@ interface SaveAck {
 }
 
 const props = defineProps<{
-  rules: { id: string; pattern: string; replacement: string }[];
-  pendingScannedRules?: { id: string; pattern: string; replacement: string }[];
-  pendingImportedRules?: { id: string; pattern: string; replacement: string }[];
+  rules: RuleRow[];
+  pendingScannedRules?: RuleRow[];
+  pendingImportedRules?: RuleRow[];
   validationFeedback?: ValidationFeedback | null;
   saveAck?: SaveAck | null;
 }>();
 
 const emit = defineEmits<{
-  (e: 'saveRules', rules: { id: string; pattern: string; replacement: string }[]): void;
-  (e: 'saveSingleRule', rule: { id: string; pattern: string; replacement: string }): void;
+  (e: 'saveRules', rules: RuleRow[]): void;
+  (e: 'saveSingleRule', rule: RuleRow): void;
   (e: 'deleteRule', ruleId: string): void;
   (e: 'scanIacFile'): void;
   (e: 'importRules'): void;
-  (e: 'exportRules', rules: { id: string; pattern: string; replacement: string }[]): void;
+  (e: 'exportRules', rules: RuleRow[]): void;
   (e: 'scannedRulesConsumed'): void;
   (e: 'importedRulesConsumed'): void;
 }>();
@@ -288,10 +334,22 @@ function toastIconClass(type: Toast['type']): string {
   return 'codicon-error';
 }
 
+type RuleField = keyof RuleRow;
+function normalizeRule(input: Partial<RuleRow>): RuleRow {
+  return {
+    id: String(input.id ?? generateId()),
+    pattern: String(input.pattern ?? ''),
+    replacement: String(input.replacement ?? ''),
+    type: (input.type as RuleRow['type']) ?? 'custom',
+    enabled: input.enabled ?? true,
+    description: input.description ? String(input.description) : '',
+  };
+}
+
 watch(
   () => props.rules,
   newRules => {
-    const incoming: RuleRow[] = JSON.parse(JSON.stringify(newRules || []));
+    const incoming: RuleRow[] = (newRules || []).map(r => normalizeRule(r));
 
     if (localRules.value.length === 0) {
       localRules.value = incoming;
@@ -305,9 +363,9 @@ watch(
       return incomingMap.get(local.id) ?? local;
     });
 
-    for (const inc of newRules || []) {
+    for (const inc of incoming) {
       if (!merged.find(r => r.id === inc.id)) {
-        merged.push(JSON.parse(JSON.stringify(inc)));
+        merged.push(inc);
       }
     }
 
@@ -327,11 +385,7 @@ watch(
     for (const sr of scanned) {
       if (existingPatterns.has(sr.pattern.trim())) continue;
       existingPatterns.add(sr.pattern.trim());
-      const newRule: RuleRow = {
-        id: sr.id || generateId(),
-        pattern: sr.pattern,
-        replacement: sr.replacement,
-      };
+      const newRule: RuleRow = normalizeRule(sr);
       localRules.value.push(newRule);
       dirtyIds.value = new Set([...dirtyIds.value, newRule.id]);
       addedCount++;
@@ -359,11 +413,7 @@ watch(
     for (const incoming of imported) {
       if (existingPatterns.has(incoming.pattern.trim())) continue;
       existingPatterns.add(incoming.pattern.trim());
-      const newRule: RuleRow = {
-        id: incoming.id || generateId(),
-        pattern: incoming.pattern,
-        replacement: incoming.replacement,
-      };
+      const newRule: RuleRow = normalizeRule(incoming);
       localRules.value.push(newRule);
       dirtyIds.value = new Set([...dirtyIds.value, newRule.id]);
       addedCount++;
@@ -422,7 +472,14 @@ function generateId(): string {
 }
 
 function addRule() {
-  const newRule: RuleRow = { id: generateId(), pattern: '', replacement: '' };
+  const newRule: RuleRow = {
+    id: generateId(),
+    pattern: '',
+    replacement: '',
+    type: 'custom',
+    enabled: true,
+    description: '',
+  };
   localRules.value.push(newRule);
   dirtyIds.value = new Set([...dirtyIds.value, newRule.id]);
 }
@@ -454,11 +511,11 @@ function cancelRemoveRule() {
   ruleToDelete.value = null;
 }
 
-function updateRule(ruleId: string, field: 'pattern' | 'replacement', value: string) {
+function updateRule(ruleId: string, field: RuleField, value: RuleRow[RuleField]) {
   const target = localRules.value.find(r => r.id === ruleId);
   if (!target) return;
 
-  target[field] = value;
+  target[field] = value as never;
   dirtyIds.value = new Set([...dirtyIds.value, target.id]);
 }
 
@@ -477,7 +534,7 @@ function saveSingleRule(ruleId: string) {
   }
 
   emit('saveSingleRule', {
-    id: rule.id,
+    ...rule,
     pattern: rule.pattern.trim(),
     replacement: rule.replacement.trim(),
   });
@@ -486,7 +543,12 @@ function saveSingleRule(ruleId: string) {
 function confirmRules() {
   const validRules = localRules.value
     .filter(r => r.pattern.trim() !== '' || r.replacement.trim() !== '')
-    .map(r => ({ id: r.id, pattern: r.pattern.trim(), replacement: r.replacement.trim() }));
+    .map(r => ({
+      ...r,
+      pattern: r.pattern.trim(),
+      replacement: r.replacement.trim(),
+      description: (r.description ?? '').trim(),
+    }));
 
   for (const rule of validRules) {
     if (!rule.pattern) {
@@ -507,7 +569,12 @@ function confirmRules() {
 function exportRules() {
   const validRules = localRules.value
     .filter(r => r.pattern.trim() !== '' || r.replacement.trim() !== '')
-    .map(r => ({ id: r.id, pattern: r.pattern.trim(), replacement: r.replacement.trim() }));
+    .map(r => ({
+      ...r,
+      pattern: r.pattern.trim(),
+      replacement: r.replacement.trim(),
+      description: (r.description ?? '').trim(),
+    }));
   emit('exportRules', validRules);
 }
 </script>
@@ -569,7 +636,7 @@ function exportRules() {
 .grid-header,
 .grid-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 96px;
+  grid-template-columns: 1.1fr 1fr 0.65fr 0.45fr 1fr 96px;
   align-items: center;
 }
 
@@ -624,8 +691,35 @@ function exportRules() {
 }
 
 .col-pattern,
-.col-replacement {
+.col-replacement,
+.col-description {
   min-width: 0;
+}
+
+.col-enabled {
+  display: flex;
+  justify-content: center;
+}
+
+.checkbox-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rule-select {
+  width: 100%;
+  height: 28px;
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-editorGroup-border));
+  border-radius: 4px;
+  padding: 0 8px;
+  outline: none;
+}
+
+.rule-select:focus {
+  border-color: var(--vscode-focusBorder);
 }
 
 .col-actions {

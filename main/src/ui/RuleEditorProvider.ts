@@ -47,36 +47,52 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                 }
 
                 case 'saveRules': {
-                    const rules = this.normalizeRules(message.rules as any[]);
-                    await this._configManager.saveProjectRules(rules);
+                    const incomingRules = message.rules as any[];
+                    const diskConfig = await this._configManager.loadFullConfig();
+                    let updatedRules = Array.isArray(diskConfig?.rules) ? diskConfig.rules.map((diskRule: any) => {
+                        const incoming = incomingRules.find((r: any) => r.id === diskRule.id);
+                        if (!incoming) return diskRule;
+                        return {
+                            ...diskRule,
+                            pattern: incoming.pattern,
+                            replacement: incoming.replacement,
+                            type: incoming.type,
+                            enabled: incoming.enabled,
+                            description: incoming.description,
+                        };
+                    }) : [];
+                    // Add any new rules
+                    for (const incoming of incomingRules) {
+                        if (!updatedRules.find((r: any) => r.id === incoming.id)) {
+                            updatedRules.push(incoming);
+                        }
+                    }
+                    await this._configManager.saveProjectRules(updatedRules);
                     this._onConfigChanged?.();
-                    webviewView.webview.postMessage({ command: 'rulesSaved' });
+                    webviewView.webview.postMessage({ command: 'rulesSaved', ruleIds: updatedRules.map((r: any) => r.id) });
                     break;
                 }
 
                 case 'saveSingleRule': {
-                    const ruleCarried = message.rule as { id: string; pattern: string; replacement: string };
+                    const ruleCarried = message.rule;
                     const loadedProject = await this._configManager.loadFullConfig();
                     const currentRules = Array.isArray(loadedProject?.rules) ? loadedProject.rules : [];
-                    const ruleExistsIndx = currentRules.findIndex(r => r.id === ruleCarried.id);
-                    const normalizedRule = {
-                        id: ruleCarried.id,
-                        type: 'custom' as const,
-                        pattern: ruleCarried.pattern,
-                        replacement: ruleCarried.replacement,
-                        enabled: true,
-                        description: `Custom rule: ${ruleCarried.pattern} → ${ruleCarried.replacement}`,
-                    };
-
+                    const ruleExistsIndx = currentRules.findIndex((r: any) => r.id === ruleCarried.id);
                     if (ruleExistsIndx !== -1) {
-                        currentRules[ruleExistsIndx] = normalizedRule;
+                        currentRules[ruleExistsIndx] = {
+                            ...currentRules[ruleExistsIndx],
+                            pattern: ruleCarried.pattern,
+                            replacement: ruleCarried.replacement,
+                            type: ruleCarried.type,
+                            enabled: ruleCarried.enabled,
+                            description: ruleCarried.description,
+                        };
                     } else {
-                        currentRules.push(normalizedRule);
+                        currentRules.push(ruleCarried);
                     }
-
                     await this._configManager.saveProjectRules(currentRules);
                     this._onConfigChanged?.();
-                    webviewView.webview.postMessage({ command: 'rulesSaved' });
+                    webviewView.webview.postMessage({ command: 'rulesSaved', ruleIds: [ruleCarried.id] });
                     break;
                 }
 
@@ -146,16 +162,7 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
         return html;
     }
 
-    private normalizeRules(rules: any[]) {
-        return (rules ?? []).map(r => ({
-            id: String(r.id),
-            type: 'custom' as const,
-            pattern: String(r.pattern ?? ''),
-            replacement: String(r.replacement ?? ''),
-            enabled: true,
-            description: `Custom rule: ${String(r.pattern ?? '')} → ${String(r.replacement ?? '')}`,
-        }));
-    }
+    // normalizeRules is no longer needed
 
     private async postInit(webview: vscode.Webview): Promise<void> {
         const config = await this._configManager.loadFullConfig();
@@ -169,6 +176,9 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                 id: r.id,
                 pattern: typeof r.pattern === 'string' ? r.pattern : r.pattern.source,
                 replacement: r.replacement,
+                type: r.type,
+                enabled: r.enabled,
+                description: r.description,
             })),
             enabled: config?.enabled ?? false,
         });
@@ -199,6 +209,11 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                     id: String(r.id ?? `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
                     pattern: typeof r.pattern === 'string' ? r.pattern : String(r.pattern?.source ?? ''),
                     replacement: String(r.replacement ?? ''),
+                    type: ['ip', 'email', 'uuid', 'secret', 'api-key', 'path', 'jwt', 'private-key', 'custom'].includes(String(r.type))
+                        ? String(r.type)
+                        : 'custom',
+                    enabled: r.enabled !== undefined ? Boolean(r.enabled) : true,
+                    description: r.description ? String(r.description) : '',
                 }))
                 .filter((r: { pattern: string; replacement: string }) => r.pattern.trim() !== '' || r.replacement.trim() !== '');
 
@@ -230,6 +245,9 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                     id: String(r.id),
                     pattern: String(r.pattern ?? ''),
                     replacement: String(r.replacement ?? ''),
+                    type: String(r.type ?? 'custom'),
+                    enabled: Boolean(r.enabled ?? true),
+                    description: r.description ? String(r.description) : '',
                 }))
                 .filter((r: { pattern: string; replacement: string }) => r.pattern.trim() !== '' || r.replacement.trim() !== '');
 

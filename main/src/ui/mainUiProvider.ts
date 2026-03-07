@@ -78,9 +78,27 @@ export class mainUIProvider {
                 case 'saveRules': {
                     const activeConfig = mainUIProvider.activeConfigManager;
                     if (!activeConfig) { break; }
-                    const rules = mainUIProvider.normalizeRules(message.rules as any[]);
-
-                    const validation = validateRules(rules);
+                    const incomingRules = message.rules as any[];
+                    const diskConfig = await activeConfig.loadFullConfig();
+                    let updatedRules = Array.isArray(diskConfig?.rules) ? diskConfig.rules.map((diskRule: any) => {
+                        const incoming = incomingRules.find((r: any) => r.id === diskRule.id);
+                        if (!incoming) return diskRule;
+                        return {
+                            ...diskRule,
+                            pattern: incoming.pattern,
+                            replacement: incoming.replacement,
+                            type: incoming.type,
+                            enabled: incoming.enabled,
+                            description: incoming.description,
+                        };
+                    }) : [];
+                    // Add any new rules
+                    for (const incoming of incomingRules) {
+                        if (!updatedRules.find((r: any) => r.id === incoming.id)) {
+                            updatedRules.push(incoming);
+                        }
+                    }
+                    const validation = validateRules(updatedRules);
                     if (!validation.valid) {
                         panel.webview.postMessage({
                             command: 'ruleValidation',
@@ -91,7 +109,6 @@ export class mainUIProvider {
                         vscode.window.showErrorMessage('Rule validation failed. Fix invalid regex or replacement values before saving.');
                         break;
                     }
-
                     if (validation.warnings.length > 0) {
                         panel.webview.postMessage({
                             command: 'ruleValidation',
@@ -99,55 +116,41 @@ export class mainUIProvider {
                             source: 'saveRules',
                             messages: validation.warnings,
                         });
-
                         const answer = await vscode.window.showWarningMessage(
                             `Rule warnings detected (${validation.warnings.length}). Save anyway?`,
                             { modal: true },
                             'Save Anyway',
                             'Cancel'
                         );
-
                         if (answer !== 'Save Anyway') {
                             break;
                         }
                     }
-
-                    await activeConfig.saveProjectRules(rules);
+                    await activeConfig.saveProjectRules(updatedRules);
                     mainUIProvider.onConfigChanged?.();
-                    panel.webview.postMessage({ command: 'rulesSaved', ruleIds: rules.map(r => r.id) });
+                    panel.webview.postMessage({ command: 'rulesSaved', ruleIds: updatedRules.map((r: any) => r.id) });
                     break;
                 }
 
                 case 'saveSingleRule': {
                     const activeConfig = mainUIProvider.activeConfigManager;
                     if (!activeConfig) { break; }
-                    const ruleCarried = message.rule as { id: string; pattern: string; replacement: string };
-
-                    // Load current rules from disk
+                    const ruleCarried = message.rule;
                     const loadedProject = await activeConfig.loadFullConfig();
                     const currentRules = Array.isArray(loadedProject?.rules) ? loadedProject.rules : [];
-                    const ruleExistsIndx = currentRules.findIndex(r => r.id === ruleCarried.id);
-                    
-                    // Create a normalized rule object (matching the structure ConfigManager expects)
-                    const normalizedRule = {
-                        id: ruleCarried.id,
-                        type: 'custom' as const,
-                        pattern: ruleCarried.pattern,  // ConfigManager will convert this to RegExp internally
-                        replacement: ruleCarried.replacement,
-                        enabled: true,
-                        description: `Custom rule: ${ruleCarried.pattern} → ${ruleCarried.replacement}`,
-                    };
-
+                    const ruleExistsIndx = currentRules.findIndex((r: any) => r.id === ruleCarried.id);
                     if (ruleExistsIndx !== -1) {
-                        // Update the single rule if it already exists
-                        currentRules[ruleExistsIndx] = normalizedRule;
-                        console.log("Updating existing rule:", normalizedRule);
+                        currentRules[ruleExistsIndx] = {
+                            ...currentRules[ruleExistsIndx],
+                            pattern: ruleCarried.pattern,
+                            replacement: ruleCarried.replacement,
+                            type: ruleCarried.type,
+                            enabled: ruleCarried.enabled,
+                            description: ruleCarried.description,
+                        };
                     } else {
-                        // OR Add it to the file
-                        currentRules.push(normalizedRule);
-                        console.log("Adding new rule:", normalizedRule);
+                        currentRules.push(ruleCarried);
                     }
-
                     const validation = validateRules(currentRules);
                     if (!validation.valid) {
                         panel.webview.postMessage({
@@ -159,7 +162,6 @@ export class mainUIProvider {
                         vscode.window.showErrorMessage('Rule validation failed. Fix invalid regex or replacement values before saving.');
                         break;
                     }
-
                     if (validation.warnings.length > 0) {
                         panel.webview.postMessage({
                             command: 'ruleValidation',
@@ -167,41 +169,19 @@ export class mainUIProvider {
                             source: 'saveSingleRule',
                             messages: validation.warnings,
                         });
-
                         const answer = await vscode.window.showWarningMessage(
                             `Rule warnings detected (${validation.warnings.length}). Save anyway?`,
                             { modal: true },
                             'Save Anyway',
                             'Cancel'
                         );
-
                         if (answer !== 'Save Anyway') {
                             break;
                         }
                     }
-
-                    // Save to disk (ConfigManager will handle pattern normalization)
                     await activeConfig.saveProjectRules(currentRules);
                     mainUIProvider.onConfigChanged?.();
-                    panel.webview.postMessage({ command: 'rulesSaved', ruleIds: [normalizedRule.id] });
-                    break;
-                }
-
-
-                case 'deleteRule': {
-                    const activeConfig = mainUIProvider.activeConfigManager;
-                    if (!activeConfig) { break; }
-                    const ruleIdToDelete = message.id as string;
-
-                    // Load & Filter out current rules from disk
-                    const loadedProject = await activeConfig.loadFullConfig();
-                    const currentRules = Array.isArray(loadedProject?.rules) ? loadedProject.rules : [];
-                    const updatedRules = currentRules.filter(r => r.id !== ruleIdToDelete);
-                    
-                    // Save the updated rules
-                    await activeConfig.saveProjectRules(updatedRules);
-                    mainUIProvider.onConfigChanged?.();
-                    panel.webview.postMessage({ command: 'ruleDeleted' });
+                    panel.webview.postMessage({ command: 'rulesSaved', ruleIds: [ruleCarried.id] });
                     break;
                 }
 
@@ -261,16 +241,7 @@ export class mainUIProvider {
         }
     }
 
-    private static normalizeRules(rules: any[]) {
-        return (rules ?? []).map(r => ({
-            id: String(r.id),
-            type: 'custom' as const,
-            pattern: String(r.pattern ?? ''),
-            replacement: String(r.replacement ?? ''),
-            enabled: true,
-            description: `Custom rule: ${String(r.pattern ?? '')} → ${String(r.replacement ?? '')}`,
-        }));
-    }
+    // normalizeRules is no longer needed
 
     private static async postInit(webview: vscode.Webview, configManager: ConfigManager): Promise<void> {
         const config = await configManager.loadFullConfig();
@@ -284,6 +255,9 @@ export class mainUIProvider {
                 id: r.id,
                 pattern: typeof r.pattern === 'string' ? r.pattern : r.pattern.source,
                 replacement: r.replacement,
+                type: r.type,
+                enabled: r.enabled,
+                description: r.description,
             })),
             enabled: config?.enabled ?? false,
         });
@@ -314,6 +288,11 @@ export class mainUIProvider {
                     id: String(r.id ?? `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
                     pattern: typeof r.pattern === 'string' ? r.pattern : String(r.pattern?.source ?? ''),
                     replacement: String(r.replacement ?? ''),
+                    type: ['ip', 'email', 'uuid', 'secret', 'api-key', 'path', 'jwt', 'private-key', 'custom'].includes(String(r.type))
+                        ? String(r.type)
+                        : 'custom',
+                    enabled: r.enabled !== undefined ? Boolean(r.enabled) : true,
+                    description: r.description ? String(r.description) : '',
                 }))
                 .filter((r: { pattern: string; replacement: string }) => r.pattern.trim() !== '' || r.replacement.trim() !== '');
 
@@ -345,6 +324,9 @@ export class mainUIProvider {
                     id: String(r.id),
                     pattern: String(r.pattern ?? ''),
                     replacement: String(r.replacement ?? ''),
+                    type: String(r.type ?? 'custom'),
+                    enabled: Boolean(r.enabled ?? true),
+                    description: r.description ? String(r.description) : '',
                 }))
                 .filter((r: { pattern: string; replacement: string }) => r.pattern.trim() !== '' || r.replacement.trim() !== '');
 
