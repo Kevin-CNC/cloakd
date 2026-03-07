@@ -65,6 +65,9 @@ interface SimpleRule {
   id: string;
   pattern: string;
   replacement: string;
+  type: 'ip' | 'email' | 'uuid' | 'secret' | 'api-key' | 'path' | 'jwt' | 'private-key' | 'custom';
+  enabled: boolean;
+  description?: string;
 }
 
 interface ValidationFeedback {
