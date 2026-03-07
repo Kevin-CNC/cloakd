@@ -3,7 +3,7 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import { TokenManager } from '../anonymizer/TokenManager';
-import { PromptHiderLogger } from '../utils/PromptHiderLogger';
+import { CloakdLogger } from '../utils/CloakdLogger';
 
 export interface CommandInput {
     command: string;
@@ -20,7 +20,7 @@ interface ExecutionResult {
 class InteractiveCommandError extends Error {
     constructor(readonly reason: string) {
         super(
-            `Interactive input is required (${reason}). Switch 'prompthider.agent.executionMode' to 'terminal' or run the command directly in the PromptHider terminal.`
+            `Interactive input is required (${reason}). Switch 'cloakd.agent.executionMode' to 'terminal' or run the command directly in the Cloakd terminal.`
         );
         this.name = 'InteractiveCommandError';
     }
@@ -52,6 +52,21 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
         this.configurationScopeUri = scopeUri;
     }
 
+    prepareInvocation(
+        options: vscode.LanguageModelToolInvocationPrepareOptions<CommandInput>
+    ): vscode.PreparedToolInvocation {
+        const command = options.input.command?.trim() ?? '';
+        const preview = command.length > 120 ? `${command.slice(0, 117)}...` : command;
+
+        return {
+            invocationMessage: `Executing command: ${preview || '(empty command)'}`,
+            confirmationMessages: {
+                title: 'Allow Cloakd to execute this shell command?',
+                message: preview || 'No command was provided.',
+            },
+        };
+    }
+
     // ── Tool interface (LanguageModelTool) ────────────────
 
     async invoke(
@@ -68,7 +83,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
 
         try {
             const executionMode = this.getExecutionMode();
-            PromptHiderLogger.debug('Tool command invocation requested.', {
+            CloakdLogger.debug('Tool command invocation requested.', {
                 executionMode,
                 commandPreview: rawCommand,
             });
@@ -81,7 +96,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
             if (mode === 'terminal') {
                 return new vscode.LanguageModelToolResult([
                     new vscode.LanguageModelTextPart(
-                        'Command sent to the PromptHider terminal for interactive/background execution. No captured output is available in terminal mode.'
+                        'Command sent to the Cloakd terminal for interactive/background execution. No captured output is available in terminal mode.'
                     )
                 ]);
             }
@@ -97,7 +112,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
             ]);
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            PromptHiderLogger.error('Command tool invocation failed.', {
+            CloakdLogger.error('Command tool invocation failed.', {
                 error: msg,
                 commandPreview: rawCommand,
             });
@@ -112,7 +127,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
     /**
      * Execute a shell command with full anonymization round-trip.
      *   1. De-anonymize the command (tokens → real values)
-     *   2. Optionally mirror the real command to the PromptHider terminal
+     *   2. Optionally mirror the real command to the Cloakd terminal
      *   3. Run via child_process.exec with adaptive timeout
      *   4. Re-anonymize stdout / stderr (real values → tokens)
      *
@@ -130,7 +145,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
         const mode = options?.executionMode ?? this.getExecutionMode();
 
         if (mode === 'captured' && interactiveReason) {
-            PromptHiderLogger.warn('Blocked interactive command in captured mode.', {
+            CloakdLogger.warn('Blocked interactive command in captured mode.', {
                 reason: interactiveReason,
                 commandPreview: rawCommand,
             });
@@ -141,7 +156,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
             this.ensureTerminal();
             this.terminal!.show(true);
             this.terminal!.sendText(realCommand, true);
-            PromptHiderLogger.info('Command handed off to PromptHider terminal.', {
+            CloakdLogger.info('Command handed off to Cloakd terminal.', {
                 commandPreview: rawCommand,
             });
             return {
@@ -153,7 +168,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
         }
 
         const result = await this.capture(realCommand, cancellationToken);
-        PromptHiderLogger.info('Captured command completed.', {
+        CloakdLogger.info('Captured command completed.', {
             exitCode: result.exitCode,
             commandPreview: rawCommand,
         });
@@ -167,7 +182,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
     }
 
     private getExecutionMode(): ExecutionMode {
-        const config = vscode.workspace.getConfiguration('prompthider', this.configurationScopeUri);
+        const config = vscode.workspace.getConfiguration('cloakd', this.configurationScopeUri);
         const configured = config.get<string>('agent.executionMode', 'captured');
         return configured === 'terminal' ? 'terminal' : 'captured';
     }
@@ -221,7 +236,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
         if (process.platform !== 'win32') {
             const controlPath = path.join(
                 os.tmpdir(),
-                'prompthider_ssh_%h_%p_%r'
+                'cloakd_ssh_%h_%p_%r'
             );
             sshOpts.push(
                 '-o', 'ControlMaster=auto',
@@ -264,7 +279,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
                             // Process was killed — either by our timeout or an external signal.
                             stderrStr = `${stderrStr}\n[Process terminated — exceeded ${timeout / 1000}s timeout]`.trim();
                         }
-                        PromptHiderLogger.warn('Command completed with execution error.', {
+                        CloakdLogger.warn('Command completed with execution error.', {
                             exitCode,
                             timeoutMs: timeout,
                         });
@@ -284,7 +299,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
             const cancelDisposable = cancellationToken.onCancellationRequested(() => {
                 proc.kill();
                 cancelDisposable.dispose();
-                PromptHiderLogger.warn('Command cancelled by user or model cancellation token.');
+                CloakdLogger.warn('Command cancelled by user or model cancellation token.');
                 reject(new Error('Command cancelled.'));
             });
 
@@ -299,7 +314,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
 
     private ensureTerminal(): void {
         if (!this.terminal || this.terminal.exitStatus !== undefined) {
-            this.terminal = vscode.window.createTerminal('PromptHider');
+            this.terminal = vscode.window.createTerminal('Cloakd');
         }
     }
 
@@ -371,7 +386,7 @@ export class CommandExecutor implements vscode.LanguageModelTool<CommandInput> {
         if (process.platform === 'win32') { return; }
 
         try {
-            const controlPattern = path.join(os.tmpdir(), 'prompthider_ssh_*');
+            const controlPattern = path.join(os.tmpdir(), 'cloakd_ssh_*');
             cp.execSync(`rm -f ${controlPattern}`, { timeout: 5_000 });
         } catch {
             // Best-effort — sockets will auto-expire via ControlPersist anyway.
