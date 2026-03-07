@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AnonymizationRule } from '../anonymizer/PatternLibrary';
-import { PromptHiderLogger } from './PromptHiderLogger';
+import { CloakdLogger } from './CloakdLogger';
 
 export interface ProjectConfig {
     version: string;
@@ -41,7 +41,7 @@ export class ConfigManager {
             return config;
         } catch (error) {
             console.error("Error loading config:", error);
-            PromptHiderLogger.error('Failed to load PromptHider config.', {
+            CloakdLogger.error('Failed to load Cloakd config.', {
                 filePath: this.configFilePath,
                 reason: error instanceof Error ? error.message : String(error),
             });
@@ -111,7 +111,7 @@ export class ConfigManager {
 
         }catch(error){
             console.error("Error loading project rules:", error);
-            PromptHiderLogger.error('Failed to load project rules.', {
+            CloakdLogger.error('Failed to load project rules.', {
                 filePath: this.configFilePath,
                 reason: error instanceof Error ? error.message : String(error),
             });
@@ -143,7 +143,7 @@ export class ConfigManager {
 
         }catch(error){
             console.error("Error saving project rules:", error);
-            PromptHiderLogger.error('Failed to save project rules.', {
+            CloakdLogger.error('Failed to save project rules.', {
                 filePath: this.configFilePath,
                 reason: error instanceof Error ? error.message : String(error),
             });
@@ -152,7 +152,7 @@ export class ConfigManager {
     }
 
     async initializeProjectConfig(): Promise<void> {
-        // TODO: Create default .prompthider.json in workspace root
+        // TODO: Create default .cloakd.json in workspace root
         // 1. Check workspace exists
         // 2. Check file doesn't already exist
         // 3. Create with default config structure
@@ -173,7 +173,7 @@ export class ConfigManager {
     // ---- Helpers for the webview UI ----
 
     getRulesheetName(): string {
-        return path.basename(this.configFilePath, '.prompthider.json');
+        return path.basename(this.configFilePath, '.cloakd.json');
     }
 
     getWorkspaceFolderName(): string {
