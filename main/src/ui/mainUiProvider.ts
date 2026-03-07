@@ -52,7 +52,7 @@ export class mainUIProvider {
         }
 
         const panel = vscode.window.createWebviewPanel(
-            'PromptHider',
+            'Cloakd',
             'Prompt Hider: Main',
             vscode.ViewColumn.One,
             {
@@ -189,6 +189,20 @@ export class mainUIProvider {
                     break;
                 }
 
+                case 'deleteRule': {
+                    const activeConfig = mainUIProvider.activeConfigManager;
+                    if (!activeConfig) { break; }
+                    const ruleIdToDelete = message.id as string;
+                    const loadedProject = await activeConfig.loadFullConfig();
+                    const currentRules = Array.isArray(loadedProject?.rules) ? loadedProject.rules : [];
+                    const updatedRules = currentRules.filter((r: any) => r.id !== ruleIdToDelete);
+
+                    await activeConfig.saveProjectRules(updatedRules);
+                    mainUIProvider.onConfigChanged?.();
+                    panel.webview.postMessage({ command: 'ruleDeleted' });
+                    break;
+                }
+
                 case 'importRules': {
                     await mainUIProvider.importRulesToWebview(panel.webview);
                     break;
@@ -203,7 +217,7 @@ export class mainUIProvider {
 
                 case 'scanIacFile': {
                     // Delegate to the registered command which handles the file picker + scanning
-                    vscode.commands.executeCommand('prompthider.scanIacFile');
+                    vscode.commands.executeCommand('cloakd.scanIacFile');
                     break;
                 }
             }
