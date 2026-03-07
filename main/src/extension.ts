@@ -11,6 +11,7 @@ import { ScpTransferTool } from './tools/ScpTransferTool';
 import { FileSystemTool } from './tools/FileSystemTool';
 import { IacScanner } from './scanner/IacScanner';
 import { PromptHiderLogger } from './utils/PromptHiderLogger';
+import { validateRules } from './anonymizer/RuleValidator';
 import * as fs from 'fs';
 import { AnonymizationRule } from './anonymizer/PatternLibrary';
 
@@ -782,14 +783,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
 
             if (currentConfigs) {
-                currentConfigs?.rules.push(newlyCreatedRule);
-                await configManager.saveProjectRules(currentConfigs.rules);
+                const currentRules = currentConfigs.rules ?? [];
+                const allRules = [...currentRules, newlyCreatedRule];
+                const validation = validateRules(allRules);
+
+                if (!validation.valid) {
+                    vscode.window.showErrorMessage(`Quick Add failed: ${validation.errors[0]}`);
+                    return;
+                }
+
+                if (validation.warnings.length > 0) {
+                    console.warn('Quick Add rule has warnings:', validation.warnings);
+                }
+
+                await configManager.saveProjectRules(allRules);
                 vscode.window.showInformationMessage(`New rule added and saved: ${patternToObfuscate} → ${givenReplacement}`);
                 mainUIProvider.refreshRules();
             };
         })
     );
-}3
+}
 
 export function deactivate(): void {
     commandExecutorInstance?.dispose();

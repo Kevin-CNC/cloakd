@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigManager } from '../utils/ConfigManager';
+import { validateRules } from '../anonymizer/RuleValidator';
 
 export class RuleEditorProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'prompthider.rulesView';
@@ -47,52 +48,98 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                 }
 
                 case 'saveRules': {
-                    const incomingRules = message.rules as any[];
-                    const diskConfig = await this._configManager.loadFullConfig();
-                    let updatedRules = Array.isArray(diskConfig?.rules) ? diskConfig.rules.map((diskRule: any) => {
-                        const incoming = incomingRules.find((r: any) => r.id === diskRule.id);
-                        if (!incoming) return diskRule;
-                        return {
-                            ...diskRule,
-                            pattern: incoming.pattern,
-                            replacement: incoming.replacement,
-                            type: incoming.type,
-                            enabled: incoming.enabled,
-                            description: incoming.description,
-                        };
-                    }) : [];
-                    // Add any new rules
-                    for (const incoming of incomingRules) {
-                        if (!updatedRules.find((r: any) => r.id === incoming.id)) {
-                            updatedRules.push(incoming);
+                    const rules = this.normalizeRules(message.rules as any[]);
+                    const validation = validateRules(rules);
+                    if (!validation.valid) {
+                        webviewView.webview.postMessage({
+                            command: 'ruleValidation',
+                            level: 'error',
+                            source: 'saveRules',
+                            messages: validation.errors,
+                        });
+                        vscode.window.showErrorMessage('Rule validation failed. Fix invalid regex or replacement values before saving.');
+                        return;
+                    }
+
+                    if (validation.warnings.length > 0) {
+                        webviewView.webview.postMessage({
+                            command: 'ruleValidation',
+                            level: 'warning',
+                            source: 'saveRules',
+                            messages: validation.warnings,
+                        });
+                        const answer = await vscode.window.showWarningMessage(
+                            `Rule warnings detected (${validation.warnings.length}). Save anyway?`,
+                            { modal: true },
+                            'Save Anyway',
+                            'Cancel'
+                        );
+
+                        if (answer !== 'Save Anyway') {
+                            return;
                         }
                     }
-                    await this._configManager.saveProjectRules(updatedRules);
+
+                    await this._configManager.saveProjectRules(rules);
                     this._onConfigChanged?.();
-                    webviewView.webview.postMessage({ command: 'rulesSaved', ruleIds: updatedRules.map((r: any) => r.id) });
+                    webviewView.webview.postMessage({ command: 'rulesSaved' });
                     break;
                 }
 
                 case 'saveSingleRule': {
-                    const ruleCarried = message.rule;
+                    const ruleCarried = message.rule as { id: string; pattern: string; replacement: string };
                     const loadedProject = await this._configManager.loadFullConfig();
                     const currentRules = Array.isArray(loadedProject?.rules) ? loadedProject.rules : [];
-                    const ruleExistsIndx = currentRules.findIndex((r: any) => r.id === ruleCarried.id);
+                    const ruleExistsIndx = currentRules.findIndex(r => r.id === ruleCarried.id);
+                    const normalizedRule = {
+                        id: ruleCarried.id,
+                        type: 'custom' as const,
+                        pattern: ruleCarried.pattern,
+                        replacement: ruleCarried.replacement,
+                        enabled: true,
+                        description: `Custom rule: ${ruleCarried.pattern} → ${ruleCarried.replacement}`,
+                    };
+
                     if (ruleExistsIndx !== -1) {
-                        currentRules[ruleExistsIndx] = {
-                            ...currentRules[ruleExistsIndx],
-                            pattern: ruleCarried.pattern,
-                            replacement: ruleCarried.replacement,
-                            type: ruleCarried.type,
-                            enabled: ruleCarried.enabled,
-                            description: ruleCarried.description,
-                        };
+                        currentRules[ruleExistsIndx] = normalizedRule;
                     } else {
-                        currentRules.push(ruleCarried);
+                        currentRules.push(normalizedRule);
                     }
+
+                    const validation = validateRules(currentRules);
+                    if (!validation.valid) {
+                        webviewView.webview.postMessage({
+                            command: 'ruleValidation',
+                            level: 'error',
+                            source: 'saveSingleRule',
+                            messages: validation.errors,
+                        });
+                        vscode.window.showErrorMessage('Rule validation failed. Fix invalid regex or replacement values before saving.');
+                        return;
+                    }
+
+                    if (validation.warnings.length > 0) {
+                        webviewView.webview.postMessage({
+                            command: 'ruleValidation',
+                            level: 'warning',
+                            source: 'saveSingleRule',
+                            messages: validation.warnings,
+                        });
+                        const answer = await vscode.window.showWarningMessage(
+                            `Rule warnings detected (${validation.warnings.length}). Save anyway?`,
+                            { modal: true },
+                            'Save Anyway',
+                            'Cancel'
+                        );
+
+                        if (answer !== 'Save Anyway') {
+                            return;
+                        }
+                    }
+
                     await this._configManager.saveProjectRules(currentRules);
                     this._onConfigChanged?.();
-                    webviewView.webview.postMessage({ command: 'rulesSaved', ruleIds: [ruleCarried.id] });
+                    webviewView.webview.postMessage({ command: 'rulesSaved' });
                     break;
                 }
 
@@ -162,7 +209,16 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
         return html;
     }
 
-    // normalizeRules is no longer needed
+    private normalizeRules(rules: any[]) {
+        return (rules ?? []).map(r => ({
+            id: String(r.id),
+            type: 'custom' as const,
+            pattern: String(r.pattern ?? ''),
+            replacement: String(r.replacement ?? ''),
+            enabled: true,
+            description: `Custom rule: ${String(r.pattern ?? '')} → ${String(r.replacement ?? '')}`,
+        }));
+    }
 
     private async postInit(webview: vscode.Webview): Promise<void> {
         const config = await this._configManager.loadFullConfig();
@@ -176,9 +232,6 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                 id: r.id,
                 pattern: typeof r.pattern === 'string' ? r.pattern : r.pattern.source,
                 replacement: r.replacement,
-                type: r.type,
-                enabled: r.enabled,
-                description: r.description,
             })),
             enabled: config?.enabled ?? false,
         });
@@ -209,11 +262,6 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                     id: String(r.id ?? `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
                     pattern: typeof r.pattern === 'string' ? r.pattern : String(r.pattern?.source ?? ''),
                     replacement: String(r.replacement ?? ''),
-                    type: ['ip', 'email', 'uuid', 'secret', 'api-key', 'path', 'jwt', 'private-key', 'custom'].includes(String(r.type))
-                        ? String(r.type)
-                        : 'custom',
-                    enabled: r.enabled !== undefined ? Boolean(r.enabled) : true,
-                    description: r.description ? String(r.description) : '',
                 }))
                 .filter((r: { pattern: string; replacement: string }) => r.pattern.trim() !== '' || r.replacement.trim() !== '');
 
@@ -245,9 +293,6 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                     id: String(r.id),
                     pattern: String(r.pattern ?? ''),
                     replacement: String(r.replacement ?? ''),
-                    type: String(r.type ?? 'custom'),
-                    enabled: Boolean(r.enabled ?? true),
-                    description: r.description ? String(r.description) : '',
                 }))
                 .filter((r: { pattern: string; replacement: string }) => r.pattern.trim() !== '' || r.replacement.trim() !== '');
 
