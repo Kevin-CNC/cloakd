@@ -37,7 +37,7 @@ Cloakd is a VS Code extension that automatically anonymizes sensitive values bef
 
 **Anonymous Pattern Matching** — Regex-based patterns with built-in support for IPs, emails, UUIDs, API keys, JWT tokens, and private keys.
 
-**Rule Editor** — Vue.js interface for managing anonymization rules in per-workspace `.prompthider/` files.
+**Rule Editor** — Vue.js interface for managing anonymization rules in per-workspace `.cloakd/` files.
 
 **IaC Scanner** — Detects Terraform secrets (AWS account IDs, ARNs, CIDR blocks, credentials) and suggests rules.
 
@@ -45,7 +45,7 @@ Cloakd is a VS Code extension that automatically anonymizes sensitive values bef
 
 **LM Tool Integration** — Three tools with full anonymization: command execution, SCP transfers, and filesystem operations.
 
-**@PromptHider Chat Participant** — Built-in VS Code Chat integration with automatic anonymization.
+**@Cloakd Chat Participant** — Built-in VS Code Chat integration with automatic anonymization.
 
 ---
 
@@ -57,14 +57,14 @@ TypeScript • VS Code Extension API • Vue.js 3 • Tailwind CSS • Vite • 
 
 ## Commands
 
-- `prompthider.activate` — Activate extension with ruleset selection
-- `prompthider.openUI` — Open main rule editor panel
-- `prompthider.openRuleEditor` — Open sidebar rule editor
-- `prompthider.showMappings` — Display current token mappings
-- `prompthider.clearMappings` — Clear all token mappings
-- `prompthider.scanIacFile` — Scan file for detectable secrets
-- `prompthider.switchRulesheet` — Switch active ruleset
-- `prompthider.quickAddRule` — Add a rule from command palette
+- `cloakd.activate` — Activate extension with ruleset selection
+- `cloakd.openUI` — Open main rule editor panel
+- `cloakd.openRuleEditor` — Open sidebar rule editor
+- `cloakd.showMappings` — Display current token mappings
+- `cloakd.clearMappings` — Clear all token mappings
+- `cloakd.scanIacFile` — Scan file for detectable secrets
+- `cloakd.switchRulesheet` — Switch active ruleset
+- `cloakd.quickAddRule` — Add a rule from command palette
 
 ---
 
@@ -75,10 +75,10 @@ TypeScript • VS Code Extension API • Vue.js 3 • Tailwind CSS • Vite • 
 2. Search for "Cloakd" and install
 
 **Setup:**
-1. Run command: `PromptHider: Open UI`
+1. Run command: `Cloakd: Open UI`
 2. Create a new ruleset (e.g., `my-project`)
 3. Add rules manually or use the IaC scanner to detect secrets
-4. In VS Code Chat, use `@PromptHider` to anonymize your prompts
+4. In VS Code Chat, use `@Cloakd` to anonymize your prompts
 
 **Example rule:**
 ```json
@@ -97,12 +97,12 @@ TypeScript • VS Code Extension API • Vue.js 3 • Tailwind CSS • Vite • 
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `prompthider.agent.maxToolRounds` | `10` | Max tool execution rounds |
-| `prompthider.agent.executionMode` | `captured` | Tool mode: `captured` or `terminal` |
-| `prompthider.agent.toolScope` | `all` | Available tools: `prompthiderOnly` or `all` |
-| `prompthider.mappings.autoClearOnSessionStart` | `false` | Clear mappings on new session |
-| `prompthider.mappings.autoClearOnRulesheetSwitch` | `false` | Clear mappings on ruleset switch |
-| `prompthider.logging.level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `cloakd.agent.maxToolRounds` | `10` | Max tool execution rounds |
+| `cloakd.agent.executionMode` | `captured` | Tool mode: `captured` or `terminal` |
+| `cloakd.agent.toolScope` | `all` | Available tools: `cloakdOnly` or `all` |
+| `cloakd.mappings.autoClearOnSessionStart` | `false` | Clear mappings on new session |
+| `cloakd.mappings.autoClearOnRulesheetSwitch` | `false` | Clear mappings on ruleset switch |
+| `cloakd.logging.level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
 
 ---
 
@@ -115,9 +115,9 @@ TypeScript • VS Code Extension API • Vue.js 3 • Tailwind CSS • Vite • 
 **IaC Scanner** — Detects Terraform-specific secrets or uses generic fallback patterns.
 
 **LM Tools** — Three tools with full de/re-anonymization:
-- `prompthider_execute_command` — Run shell commands safely
-- `prompthider_scp_transfer` — Secure file transfers
-- `prompthider_filesystem` — File read/write/patch/delete operations
+- `cloakd_execute_command` — Run shell commands safely
+- `cloakd_scp_transfer` — Secure file transfers
+- `cloakd_filesystem` — File read/write/patch/delete operations
 
 **Privacy Boundary:**
 1. Input anonymized before reaching the LM
