@@ -1,7 +1,7 @@
 import { TokenManager } from './TokenManager';
 import { ConfigManager } from '../utils/ConfigManager';
 import { RegexPatternMatcher, type PatternMatch } from './patternMatcher';
-import { PromptHiderLogger } from '../utils/PromptHiderLogger';
+import { CloakdLogger } from '../utils/CloakdLogger';
 
 export interface AnonymizationResult {
     original: string;
@@ -72,7 +72,7 @@ export class AnonymizationEngine {
                 }
             };
         } catch (error) {
-            PromptHiderLogger.error('Anonymization failed inside engine.', {
+            CloakdLogger.error('Anonymization failed inside engine.', {
                 reason: error instanceof Error ? error.message : String(error),
                 textLength: text.length,
             });

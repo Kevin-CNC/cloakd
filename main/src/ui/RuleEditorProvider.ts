@@ -5,7 +5,7 @@ import { ConfigManager } from '../utils/ConfigManager';
 import { validateRules } from '../anonymizer/RuleValidator';
 
 export class RuleEditorProvider implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'prompthider.rulesView';
+    public static readonly viewType = 'cloakd.rulesView';
     private _view?: vscode.WebviewView;
     private _configManager: ConfigManager;
 
@@ -156,7 +156,7 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                 }
 
                 case 'scanIacFile': {
-                    vscode.commands.executeCommand('prompthider.scanIacFile');
+                    vscode.commands.executeCommand('cloakd.scanIacFile');
                     break;
                 }
 

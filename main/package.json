@@ -3,7 +3,7 @@
   "displayName": "VS Prompt Hider",
   "description": "Privacy-preserving middleware for AI assistants - anonymize sensitive data before sending prompts to LLMs",
   "version": "0.0.1",
-  "publisher": "your-publisher-name",
+  "publisher": "kevincaplescu",
   "repository": {
     "type": "git",
     "url": "https://github.com/Kevin-CNC/vs-prompt-hider.git"
@@ -32,14 +32,14 @@
   "contributes": {
     "chatParticipants": [
       {
-        "id": "prompthider",
-        "name": "PromptHider",
+        "id": "cloakd",
+        "name": "Cloakd",
         "description": "Obfuscate sensitive data in your prompts"
       }
     ],
     "languageModelTools": [
       {
-        "name": "prompthider_execute_command",
+        "name": "cloakd_execute_command",
         "displayName": "Execute Terminal Command",
         "canBeReferencedInPrompt": false,
         "modelDescription": "Executes a shell command in the VS Code integrated terminal. Use this tool whenever the user asks you to run, execute, or invoke a command. The command string may contain anonymized placeholders (such as IP_1, USER_A@domain.tld, API_KEY_1) — these are automatically resolved to their real values before execution, so always pass the anonymized token as-is.",
@@ -55,7 +55,7 @@
         }
       },
       {
-        "name": "prompthider_scp_transfer",
+        "name": "cloakd_scp_transfer",
         "displayName": "Transfer File via SCP",
         "canBeReferencedInPrompt": false,
         "modelDescription": "Transfers files between the local machine and a remote server via SCP. Paths may contain anonymized tokens (IP_1, FILE_PATH_1, etc.) which are automatically resolved before execution. Use for uploading scripts, configs, or downloading reports and logs.",
@@ -79,13 +79,12 @@
         }
       },
       {
-        "name": "prompthider_filesystem",
+        "name": "cloakd_filesystem",
         "displayName": "Read/Write Workspace Files",
         "canBeReferencedInPrompt": false,
         "modelDescription": "Accesses workspace files and directories with operations: read, write, patch, delete, and list. Paths can include anonymized tokens and are resolved locally. Read results are anonymized before being returned to the model; writes and patches de-anonymize tokens locally before touching disk.",
         "inputSchema": {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
             "operation": {
               "type": "string",
@@ -117,112 +116,83 @@
               "description": "Set true to delete directories recursively."
             }
           },
-          "required": ["operation", "path"],
-          "oneOf": [
-            {
-              "properties": {
-                "operation": { "const": "read" }
-              }
-            },
-            {
-              "properties": {
-                "operation": { "const": "list" }
-              }
-            },
-            {
-              "properties": {
-                "operation": { "const": "write" }
-              },
-              "required": ["content"]
-            },
-            {
-              "properties": {
-                "operation": { "const": "patch" }
-              },
-              "required": ["old_text", "new_text"]
-            },
-            {
-              "properties": {
-                "operation": { "const": "delete" }
-              }
-            }
-          ]
+          "required": ["operation", "path"]
         }
       }
     ],
     "commands": [
       {
-        "command": "prompthider.activate",
+        "command": "cloakd.activate",
         "title": "Create Rulesheet",
-        "category": "Prompt Hider"
+        "category": "Cloakd"
       },
       {
-        "command": "prompthider.openUI",
+        "command": "cloakd.openUI",
         "title": "Open Main UI",
         "icon": "$(window)",
-        "category": "Prompt Hider"
+        "category": "Cloakd"
       },
       {
-        "command": "prompthider.anonymize",
+        "command": "cloakd.anonymize",
         "title": "Anonymize Selection",
-        "category": "Prompt Hider - Quick Actions"
+        "category": "Cloakd - Quick Actions"
       },
       {
-        "command": "prompthider.openRuleEditor",
+        "command": "cloakd.openRuleEditor",
         "title": "Open Rule Editor",
-        "category": "Prompt Hider - Quick Actions"
+        "category": "Cloakd - Quick Actions"
       },
       {
-        "command": "prompthider.showMappings",
+        "command": "cloakd.showMappings",
         "title": "Show Token Mappings",
-        "category": "Prompt Hider - Quick Actions"
+        "category": "Cloakd - Quick Actions"
       },
       {
-        "command": "prompthider.clearMappings",
+        "command": "cloakd.clearMappings",
         "title": "Clear Token Mappings",
-        "category": "Prompt Hider"
+        "category": "Cloakd"
       },
       {
-        "command": "prompthider.scanIacFile",
+        "command": "cloakd.scanIacFile",
         "title": "Scan IaC File for Patterns",
         "icon": "$(search)",
-        "category": "Prompt Hider"
+        "category": "Cloakd"
       },
       {
-        "command": "prompthider.switchRulesheet",
+        "command": "cloakd.switchRulesheet",
         "title": "Switch Active Rulesheet",
-        "category": "Prompt Hider"
+        "category": "Cloakd"
       },
       {
-        "command": "prompthider.quickAddRule",
-        "title": "PromptHider: Quick Add Rule"
+        "command": "cloakd.quickAddRule",
+        "title": "Cloakd: Quick Add Rule"
       }
     ],
     "keybindings": [
       {
         "key": "ctrl+shift+a",
-        "command": "prompthider.quickAddRule"
+        "command": "cloakd.quickAddRule"
       }
     ],
     "configuration": {
-      "title": "Prompt Hider",
+      "title": "Cloakd",
       "properties": {
-        "prompthider.autoAnonymize": {
+        "cloakd.autoAnonymize": {
           "type": "boolean",
           "default": true,
           "description": "Automatically anonymize sensitive data when detected"
         },
-        "prompthider.showPreview": {
+        "cloakd.showPreview": {
           "type": "boolean",
           "default": true,
           "description": "Show preview before anonymizing"
         },
-        "prompthider.tokenConsistency": {
+        "cloakd.tokenConsistency": {
           "type": "boolean",
           "default": true,
           "description": "Use consistent tokens for the same values across sessions"
         },
-        "prompthider.enabledPatterns": {
+        "cloakd.enabledPatterns": {
           "type": "array",
           "default": [
             "ip",
@@ -232,42 +202,42 @@
           ],
           "description": "List of enabled pattern types"
         },
-        "prompthider.mappings.autoClearOnSessionStart": {
+        "cloakd.mappings.autoClearOnSessionStart": {
           "type": "boolean",
           "default": true,
           "description": "Automatically clear token mappings when a new VS Code session starts for this workspace."
         },
-        "prompthider.mappings.autoClearOnRulesheetSwitch": {
+        "cloakd.mappings.autoClearOnRulesheetSwitch": {
           "type": "boolean",
           "default": true,
           "description": "Automatically clear token mappings when switching the active rulesheet."
         },
-        "prompthider.agent.maxToolRounds": {
+        "cloakd.agent.maxToolRounds": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "maximum": 100,
-          "description": "Maximum LM tool-calling rounds for @PromptHider before the loop is stopped."
+          "description": "Maximum LM tool-calling rounds for @Cloakd before the loop is stopped."
         },
-        "prompthider.agent.executionMode": {
+        "cloakd.agent.executionMode": {
           "type": "string",
           "default": "captured",
           "enum": [
             "captured",
             "terminal"
           ],
-          "description": "Execution mode for PromptHider tools. 'captured' runs commands once and returns structured output to the model. 'terminal' sends commands to the PromptHider terminal and returns handoff status."
+          "description": "Execution mode for Cloakd tools. 'captured' runs commands once and returns structured output to the model. 'terminal' sends commands to the Cloakd terminal and returns handoff status."
         },
-        "prompthider.agent.toolScope": {
+        "cloakd.agent.toolScope": {
           "type": "string",
-          "default": "prompthiderOnly",
+          "default": "cloakdOnly",
           "enum": [
-            "prompthiderOnly",
+            "cloakdOnly",
             "all"
           ],
-          "description": "Controls which language-model tools are exposed to @PromptHider."
+          "description": "Controls which language-model tools are exposed to @Cloakd. 'cloakdOnly' is recommended for privacy. 'all' is retained for compatibility but may expose non-Cloakd tools that are outside Cloakd's anonymization boundary and is planned for deprecation."
         },
-        "prompthider.logging.level": {
+        "cloakd.logging.level": {
           "type": "string",
           "default": "warn",
           "enum": [
@@ -276,49 +246,51 @@
             "info",
             "debug"
           ],
-          "description": "Controls PromptHider diagnostic logging verbosity for output channel and local .prompthider logs."
+          "description": "Controls Cloakd diagnostic logging verbosity for output channel and local .cloakd logs."
         }
       }
     },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "prompthider-sidebar",
-          "title": "Prompt Hider",
+          "id": "cloakd-sidebar",
+          "title": "Cloakd",
           "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
-      "prompthider-sidebar": [
+      "cloakd-sidebar": [
         {
-          "id": "prompthider.mappingsView",
-          "name": "Token Mappings"
+          "id": "cloakd.mappingsView",
+            "name": "Token Mappings",
+            "icon": "$(link)"
         },
         {
-          "id": "prompthider.rulesView",
-          "name": "Anonymization Rules"
+          "id": "cloakd.rulesView",
+            "name": "Anonymization Rules",
+            "icon": "$(list-filter)"
         }
       ]
     },
     "menus": {
       "view/title": [
         {
-          "command": "prompthider.openUI",
-          "when": "view == prompthider.mappingsView || view == prompthider.rulesView",
+          "command": "cloakd.openUI",
+          "when": "view == cloakd.mappingsView || view == cloakd.rulesView",
           "group": "navigation"
         }
       ],
       "editor/context": [
         {
           "when": "editorHasSelection",
-          "command": "prompthider.anonymize",
+          "command": "cloakd.anonymize",
           "group": "9_cutcopypaste"
         }
       ],
       "commandPalette": [
         {
-          "command": "prompthider.anonymize",
+          "command": "cloakd.anonymize",
           "when": "editorIsOpen"
         }
       ]

@@ -5,7 +5,7 @@ node_modules
 *.vsix
 .DS_Store
 .env
-.prompthider.cache
+.cloakd.cache
 
 # Webview build artifacts
 webview-ui/dist

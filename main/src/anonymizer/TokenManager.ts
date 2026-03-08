@@ -111,14 +111,14 @@ export class TokenManager {
         const mappingsArray = Array.from(this.mappings.entries());
         const countersArray = Array.from(this.counters.entries());
         
-        this.context.workspaceState.update('prompthider.mappings', mappingsArray);
-        this.context.workspaceState.update('prompthider.counters', countersArray);
+        this.context.workspaceState.update('cloakd.mappings', mappingsArray);
+        this.context.workspaceState.update('cloakd.counters', countersArray);
     }
 
     private loadMappings(): void {
         // Load mappings from VS Code workspace state
-        const mappingsArray = this.context.workspaceState.get<Array<[string, string]>>('prompthider.mappings', []);
-        const countersArray = this.context.workspaceState.get<Array<[string, number]>>('prompthider.counters', []);
+        const mappingsArray = this.context.workspaceState.get<Array<[string, string]>>('cloakd.mappings', []);
+        const countersArray = this.context.workspaceState.get<Array<[string, number]>>('cloakd.counters', []);
         
         this.mappings = new Map(mappingsArray);
         this.counters = new Map(countersArray);

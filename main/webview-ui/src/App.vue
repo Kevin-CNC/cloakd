@@ -11,7 +11,7 @@
     </header>
 
     <div class="scope-note" role="note" aria-live="polite">
-      Anonymization is applied only when you chat with <strong>@PromptHider</strong>.
+      Anonymization is applied only when you chat with <strong>@Cloakd</strong>.
     </div>
 
     <!-- Rule Editor -->
@@ -155,7 +155,7 @@ window.addEventListener('message', (event) => {
       validationFeedback.value = {
         level: msg.level === 'warning' ? 'warning' : 'error',
         source: 'unknown',
-        messages: [String(msg.message ?? 'An unexpected PromptHider error occurred.')],
+        messages: [String(msg.message ?? 'An unexpected Cloakd error occurred.')],
         timestamp: Date.now(),
       };
       break;

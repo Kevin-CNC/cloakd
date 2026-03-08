@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { CommandExecutor } from './CommandExecutor';
-import { PromptHiderLogger } from '../utils/PromptHiderLogger';
+import { CloakdLogger } from '../utils/CloakdLogger';
 
 // ── Input schema (mirrors package.json declaration) ──────
 
@@ -26,6 +26,22 @@ export interface ScpTransferInput {
  */
 export class ScpTransferTool implements vscode.LanguageModelTool<ScpTransferInput> {
     constructor(private readonly commandExecutor: CommandExecutor) {}
+
+    prepareInvocation(
+        options: vscode.LanguageModelToolInvocationPrepareOptions<ScpTransferInput>
+    ): vscode.PreparedToolInvocation {
+        const { source, destination } = options.input;
+        const sourcePath = source?.trim() || '(missing source)';
+        const destinationPath = destination?.trim() || '(missing destination)';
+
+        return {
+            invocationMessage: `Transferring via SCP: ${sourcePath} -> ${destinationPath}`,
+            confirmationMessages: {
+                title: 'Allow Cloakd to transfer files via SCP?',
+                message: `Source: ${sourcePath}\nDestination: ${destinationPath}`,
+            },
+        };
+    }
 
     async invoke(
         options: vscode.LanguageModelToolInvocationOptions<ScpTransferInput>,
@@ -56,13 +72,13 @@ export class ScpTransferTool implements vscode.LanguageModelTool<ScpTransferInpu
                 );
 
             if (mode === 'terminal') {
-                PromptHiderLogger.info('SCP command handed off to terminal mode.', {
+                CloakdLogger.info('SCP command handed off to terminal mode.', {
                     source,
                     destination,
                 });
                 return new vscode.LanguageModelToolResult([
                     new vscode.LanguageModelTextPart(
-                        'SCP command sent to the PromptHider terminal for interactive/background execution. No captured transfer output is available in terminal mode.'
+                        'SCP command sent to the Cloakd terminal for interactive/background execution. No captured transfer output is available in terminal mode.'
                     )
                 ]);
             }
@@ -88,7 +104,7 @@ export class ScpTransferTool implements vscode.LanguageModelTool<ScpTransferInpu
             }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            PromptHiderLogger.error('SCP transfer invocation failed.', {
+            CloakdLogger.error('SCP transfer invocation failed.', {
                 source,
                 destination,
                 error: msg,

@@ -1,8 +1,8 @@
-# VS Prompt Hider
+# Cloakd (formerly Vs Prompt Hider)
 
 > **Privacy-First AI Development**: Automatically anonymize sensitive data before sending prompts to AI assistants and LLMs.
 
-VS Prompt Hider is a VS Code extension that acts as a privacy-preserving middleware between you and AI assistants. It automatically detects and anonymizes sensitive information (IPs, emails, API keys, credentials, file paths, and more) in your prompts, replacing them with consistent, reversible tokens that can be de-anonymized locally before execution.
+Cloakd is a VS Code extension that acts as a privacy-preserving middleware between you and AI assistants. It automatically detects and anonymizes sensitive information (IPs, emails, API keys, credentials, file paths, and more) in your prompts, replacing them with consistent, reversible tokens that can be de-anonymized locally before execution.
 
 **Perfect for:**
 - 🔒 Sharing code with AI assistants without exposing secrets
@@ -93,7 +93,7 @@ VS Prompt Hider is a VS Code extension that acts as a privacy-preserving middlew
 
 1. Open VS Code
 2. Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
-3. Search for "VS Prompt Hider"
+3. Search for "Cloakd"
 4. Click Install
 
 ### From GitHub (Development)
@@ -131,15 +131,15 @@ VS Prompt Hider is a VS Code extension that acts as a privacy-preserving middlew
 When you first open VS Code with the extension, you'll be prompted to create a rulesheet:
 
 ```bash
-Cmd+Shift+P → Prompt Hider: Create Rulesheet
+Cmd+Shift+P → Cloakd: Create Rulesheet
 ```
 
-Choose a name for your rulesheet (or use the default "defaultSheet"). A `.prompthider.json` file will be created in your workspace root.
+Choose a name for your rulesheet (or use the default "defaultSheet"). A `.cloakd.json` file will be created in your workspace root.
 
 ### 2. Enable Auto-Anonymization
 
 Go to VS Code Settings and enable:
-- `prompthider.autoAnonymize`: true
+- `cloakd.autoAnonymize`: true
 
 ### 3. Share Sensitive Code with AI
 
@@ -153,7 +153,7 @@ Go to VS Code Settings and enable:
 Open the Mappings View in the sidebar to see all active tokens:
 
 ```bash
-Cmd+Shift+P → Prompt Hider: Show Token Mappings
+Cmd+Shift+P → Cloakd: Show Token Mappings
 ```
 
 ---
@@ -162,7 +162,7 @@ Cmd+Shift+P → Prompt Hider: Show Token Mappings
 
 ### Creating Your First Rulesheet
 
-The first time you activate the extension, it will search your workspace for `.prompthider.json` files. If none exist, you'll be prompted to create one:
+The first time you activate the extension, it will search your workspace for `.cloakd.json` files. If none exist, you'll be prompted to create one:
 
 ```json
 {
@@ -186,7 +186,7 @@ The rulesheet is automatically added to `.gitignore` and `.copilotignore` to pre
 ### Opening the Main UI
 
 ```bash
-Cmd+Shift+P → Prompt Hider: Open Main UI
+Cmd+Shift+P → Cloakd: Open Main UI
 ```
 
 The Main UI provides:
@@ -204,13 +204,13 @@ If enabled, sensitive data is automatically detected and replaced when you copy 
 #### Method 2: Manual Selection
 1. Select text in your editor
 2. Right-click → "Anonymize Selection"
-   - Or: `Cmd+Shift+P` → `Prompt Hider: Anonymize Selection`
+   - Or: `Cmd+Shift+P` → `Cloakd: Anonymize Selection`
 3. Review the preview
 4. Confirm anonymization
 
 #### Method 3: Scan Entire File
 ```bash
-Cmd+Shift+P → Prompt Hider: Scan IaC File for Patterns
+Cmd+Shift+P → Cloakd: Scan IaC File for Patterns
 ```
 
 This scans the current file and highlights all matched patterns.
@@ -219,14 +219,14 @@ This scans the current file and highlights all matched patterns.
 
 #### View Mappings
 ```bash
-Cmd+Shift+P → Prompt Hider: Show Token Mappings
+Cmd+Shift+P → Cloakd: Show Token Mappings
 ```
 
 Shows all current token → value mappings in a panel.
 
 #### Clear Mappings
 ```bash
-Cmd+Shift+P → Prompt Hider: Clear Token Mappings
+Cmd+Shift+P → Cloakd: Clear Token Mappings
 ```
 
 Resets all mappings. Use with caution—previous tokens will no longer map to original values.
@@ -236,7 +236,7 @@ Resets all mappings. Use with caution—previous tokens will no longer map to or
 Use the IaC Scanner to detect sensitive data in Infrastructure-as-Code files:
 
 ```bash
-Cmd+Shift+P → Prompt Hider: Scan IaC File for Patterns
+Cmd+Shift+P → Cloakd: Scan IaC File for Patterns
 ```
 
 The scanner will:
@@ -255,10 +255,10 @@ Supported files:
 ### Using with AI Assistants
 
 #### With GitHub Copilot
-VS Prompt Hider integrates as a chat participant in VS Code:
+Cloakd integrates as a chat participant in VS Code:
 
 ```
-@prompthider Help me debug this SSH configuration issue
+@cloakd Help me debug this SSH configuration issue
 ```
 
 The participant will:
@@ -277,7 +277,7 @@ The participant will:
 #### Language Model Tools
 Two tools are automatically available to AI assistants:
 
-**prompthider_execute_command**
+**cloakd_execute_command**
 - Executes shell commands with automatic de-anonymization
 - Accepts anonymized tokens (e.g., `ssh IP_1`, `curl -H Authorization: API_KEY_1`)
 - Locally resolves tokens before execution
@@ -288,7 +288,7 @@ Two tools are automatically available to AI assistants:
   }
   ```
 
-**prompthider_scp_transfer**
+**cloakd_scp_transfer**
 - Transfers files via SCP with token resolution
 - Supports anonymized paths and server addresses
 - Example:
@@ -310,24 +310,24 @@ All settings are configurable via VS Code Settings (Preferences → Settings):
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `prompthider.autoAnonymize` | boolean | `true` | Automatically anonymize detected sensitive data |
-| `prompthider.showPreview` | boolean | `true` | Show preview before anonymizing |
-| `prompthider.tokenConsistency` | boolean | `true` | Use consistent tokens across sessions |
-| `prompthider.enabledPatterns` | array | `["ip", "email", "uuid", "api-key"]` | List of enabled pattern types |
+| `cloakd.autoAnonymize` | boolean | `true` | Automatically anonymize detected sensitive data |
+| `cloakd.showPreview` | boolean | `true` | Show preview before anonymizing |
+| `cloakd.tokenConsistency` | boolean | `true` | Use consistent tokens across sessions |
+| `cloakd.enabledPatterns` | array | `["ip", "email", "uuid", "api-key"]` | List of enabled pattern types |
 
 Example `settings.json`:
 ```json
 {
-  "prompthider.autoAnonymize": true,
-  "prompthider.showPreview": false,
-  "prompthider.tokenConsistency": true,
-  "prompthider.enabledPatterns": ["ip", "email", "api-key", "custom"]
+  "cloakd.autoAnonymize": true,
+  "cloakd.showPreview": false,
+  "cloakd.tokenConsistency": true,
+  "cloakd.enabledPatterns": ["ip", "email", "api-key", "custom"]
 }
 ```
 
 ### Rulesheet Format
 
-Rulesheets are stored as `.prompthider.json` files in JSON format:
+Rulesheets are stored as `.cloakd.json` files in JSON format:
 
 ```json
 {
@@ -367,7 +367,7 @@ The extension includes the following built-in patterns:
 
 ### Custom Rules
 
-Create custom rules for organization-specific patterns. Edit your `.prompthider.json` rulesheet:
+Create custom rules for organization-specific patterns. Edit your `.cloakd.json` rulesheet:
 
 ```json
 {
@@ -413,7 +413,7 @@ Create custom rules for organization-specific patterns. Edit your `.prompthider.
 
 ### Component Overview
 
-VS Prompt Hider is organized into modular components:
+Cloakd is organized into modular components:
 
 ```
 src/
@@ -467,18 +467,18 @@ All commands are accessible via Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
 
 | Command | Title | Keybinding | Description |
 |---------|-------|-----------|-------------|
-| `prompthider.activate` | Create Rulesheet | — | Initialize a new rulesheet in the workspace |
-| `prompthider.openUI` | Open Main UI | — | Open the main dashboard webview |
-| `prompthider.clearMappings` | Clear Token Mappings | — | Reset all token mappings |
-| `prompthider.scanIacFile` | Scan IaC File for Patterns | — | Scan current file for sensitive data |
+| `cloakd.activate` | Create Rulesheet | — | Initialize a new rulesheet in the workspace |
+| `cloakd.openUI` | Open Main UI | — | Open the main dashboard webview |
+| `cloakd.clearMappings` | Clear Token Mappings | — | Reset all token mappings |
+| `cloakd.scanIacFile` | Scan IaC File for Patterns | — | Scan current file for sensitive data |
 
 ### Quick Actions
 
 | Command | Title | Context | Description |
 |---------|-------|---------|-------------|
-| `prompthider.anonymize` | Anonymize Selection | Selection | Anonymize selected text |
-| `prompthider.openRuleEditor` | Open Rule Editor | — | Open the rule editor webview |
-| `prompthider.showMappings` | Show Token Mappings | — | Display current token mappings |
+| `cloakd.anonymize` | Anonymize Selection | Selection | Anonymize selected text |
+| `cloakd.openRuleEditor` | Open Rule Editor | — | Open the rule editor webview |
+| `cloakd.showMappings` | Show Token Mappings | — | Display current token mappings |
 
 ---
 
@@ -486,10 +486,10 @@ All commands are accessible via Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
 
 ### Chat Participants
 
-VS Prompt Hider registers as a chat participant that integrates with copilot-style AI assistants:
+Cloakd registers as a chat participant that integrates with copilot-style AI assistants:
 
 ```
-@prompthider [your message here]
+@cloakd [your message here]
 ```
 
 The participant:
@@ -501,7 +501,7 @@ The participant:
 
 AI assistants have access to two tools for secure operations:
 
-#### `prompthider_execute_command`
+#### `cloakd_execute_command`
 
 Executes shell commands with automatic de-anonymization:
 
@@ -513,7 +513,7 @@ The tool will resolve tokens back to original values before executing:
 - `IP_1` → Original IP address
 - `FILE_PATH_2` → Original file path
 
-#### `prompthider_scp_transfer`
+#### `cloakd_scp_transfer`
 
 Transfers files securely via SCP:
 
@@ -532,7 +532,7 @@ Recursive: false
 1. **First Detection**: When sensitive data is detected, a unique token is created (e.g., `IP_1`)
 2. **Mapping Storage**: The token → value mapping is stored in the workspace's local mappings file
 3. **Future References**: The same value always maps to the same token in the session
-4. **Persistence**: If enabled (`prompthider.tokenConsistency: true`), mappings persist across sessions
+4. **Persistence**: If enabled (`cloakd.tokenConsistency: true`), mappings persist across sessions
 5. **De-anonymization**: When commands are executed, tokens are automatically replaced with original values
 
 ### Viewing Mappings
@@ -551,7 +551,7 @@ PRIVATE_KEY_1 → -----BEGIN PRIVATE KEY-----...
 Clear all mappings with:
 
 ```bash
-Cmd+Shift+P → Prompt Hider: Clear Token Mappings
+Cmd+Shift+P → Cloakd: Clear Token Mappings
 ```
 
 ⚠️ **Warning**: This will break de-anonymization for previous tokens.
@@ -565,8 +565,8 @@ Cmd+Shift+P → Prompt Hider: Clear Token Mappings
 **Issue**: Extension loads but no rulesheet found.
 
 **Solution**: 
-- Run `Prompt Hider: Create Rulesheet` to initialize
-- Check if `.prompthider.json` exists in workspace root
+- Run `Cloakd: Create Rulesheet` to initialize
+- Check if `.cloakd.json` exists in workspace root
 - Verify file is valid JSON
 
 ### Patterns Not Matching
@@ -585,7 +585,7 @@ Cmd+Shift+P → Prompt Hider: Clear Token Mappings
 **Issue**: Commands executed with tokens show token values, not original.
 
 **Solution**:
-- Ensure mappings exist: `Prompt Hider: Show Token Mappings`
+- Ensure mappings exist: `Cloakd: Show Token Mappings`
 - Don't clear mappings before executing commands
 - Check token format matches (e.g., `IP_1`, not `IP_01`)
 
@@ -606,10 +606,10 @@ Cmd+Shift+P → Prompt Hider: Clear Token Mappings
 1. Disable patterns you don't need:
    ```json
    {
-     "prompthider.enabledPatterns": ["ip", "email"]
+     "cloakd.enabledPatterns": ["ip", "email"]
    }
    ```
-2. Disable auto-anonymization: `prompthider.autoAnonymize: false`
+2. Disable auto-anonymization: `cloakd.autoAnonymize: false`
 3. Check for large rulesheet files and optimize patterns
 
 ---
@@ -701,7 +701,7 @@ npm run test
 3. Example:
    ```typescript
    context.subscriptions.push(
-     vscode.commands.registerCommand('prompthider.myCommand', () => {
+     vscode.commands.registerCommand('cloakd.myCommand', () => {
        vscode.window.showInformationMessage('Hello!');
      })
    );
@@ -766,13 +766,13 @@ This extension is provided as-is for privacy-focused development. Use responsibl
 A: No. Anonymization runs asynchronously and is optimized for performance. You can disable auto-anonymization in settings if needed.
 
 **Q: Can I share my rulesheet with team members?**  
-A: Yes! Commit the `.prompthider.json` file to your repository. Mappings files are local-only and in `.gitignore`.
+A: Yes! Commit the `.cloakd.json` file to your repository. Mappings files are local-only and in `.gitignore`.
 
 **Q: Is my data sent anywhere?**  
 A: No. Everything runs locally. Tokens are only generated and stored on your machine.
 
 **Q: Can I undo anonymization?**  
-A: Yes, as long as mappings exist. Use `Prompt Hider: Clear Token Mappings` only when you want to reset.
+A: Yes, as long as mappings exist. Use `Cloakd: Clear Token Mappings` only when you want to reset.
 
 **Q: Does this work with all AI assistants?**  
 A: It works best with GitHub Copilot (chat participant integration). For other assistants, manually copy anonymized content.

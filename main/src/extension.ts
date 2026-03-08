@@ -10,12 +10,13 @@ import { CommandExecutor } from './tools/CommandExecutor';
 import { ScpTransferTool } from './tools/ScpTransferTool';
 import { FileSystemTool } from './tools/FileSystemTool';
 import { IacScanner } from './scanner/IacScanner';
-import { PromptHiderLogger } from './utils/PromptHiderLogger';
+import { CloakdLogger } from './utils/CloakdLogger';
 import { validateRules } from './anonymizer/RuleValidator';
 import * as fs from 'fs';
 import { AnonymizationRule } from './anonymizer/PatternLibrary';
 
 let commandExecutorInstance: CommandExecutor | undefined;
+let hasWarnedAboutAllToolScope = false;
 
 interface RulesheetSelection {
     workspaceFolder: vscode.WorkspaceFolder;
@@ -77,7 +78,7 @@ async function pickWorkspaceFolder(
 
 async function findRulesheetsInWorkspace(folder: vscode.WorkspaceFolder): Promise<vscode.Uri[]> {
     return vscode.workspace.findFiles(
-        new vscode.RelativePattern(folder, '**/*.prompthider.json')
+        new vscode.RelativePattern(folder, '**/*.cloakd.json')
     );
 }
 
@@ -86,12 +87,12 @@ async function createRulesheetInWorkspace(folder: vscode.WorkspaceFolder): Promi
         placeHolder: 'Enter your rule file name (Else press enter for default name).'
     }));
 
-    const promptHiderFolder = path.join(folder.uri.fsPath, '.prompthider');
-    if (!fs.existsSync(promptHiderFolder)) {
-        fs.mkdirSync(promptHiderFolder, { recursive: true });
+    const cloakdFolder = path.join(folder.uri.fsPath, '.cloakd');
+    if (!fs.existsSync(cloakdFolder)) {
+        fs.mkdirSync(cloakdFolder, { recursive: true });
     }
 
-    const newFilePath = path.join(promptHiderFolder, `${givenName}.prompthider.json`);
+    const newFilePath = path.join(cloakdFolder, `${givenName}.cloakd.json`);
     const selectedFile = vscode.Uri.file(newFilePath);
 
     const defaultData = {
@@ -145,7 +146,7 @@ async function pickRulesheetInWorkspace(
     if (allowCreate) {
         items.unshift({
             label: '$(add) Create new rulesheet',
-            description: `Create under ${folder.name}/.prompthider`,
+            description: `Create under ${folder.name}/.cloakd`,
             createNew: true,
         });
     }
@@ -167,7 +168,7 @@ async function selectWorkspaceAndRulesheet(
     preferredFolder?: vscode.WorkspaceFolder
 ): Promise<RulesheetSelection | undefined> {
     const folder = await pickWorkspaceFolder(
-        'Pick the workspace folder for the active PromptHider session.',
+        'Pick the workspace folder for the active Cloakd session.',
         preferredFolder
     );
     if (!folder) {
@@ -188,7 +189,7 @@ async function selectWorkspaceAndRulesheet(
 }
 
 function getConfigForFolder(folder: vscode.WorkspaceFolder): vscode.WorkspaceConfiguration {
-    return vscode.workspace.getConfiguration('prompthider', folder.uri);
+    return vscode.workspace.getConfiguration('cloakd', folder.uri);
 }
 
 function getMaxToolRounds(folder: vscode.WorkspaceFolder): number {
@@ -206,10 +207,19 @@ function shouldAutoClearOnRulesheetSwitch(folder: vscode.WorkspaceFolder): boole
 }
 
 function getToolDefinitions(folder: vscode.WorkspaceFolder): vscode.LanguageModelChatTool[] {
-    const toolScope = getConfigForFolder(folder).get<string>('agent.toolScope', 'prompthiderOnly');
+    const toolScope = getConfigForFolder(folder).get<string>('agent.toolScope', 'cloakdOnly');
+
+    if (toolScope === 'all' && !hasWarnedAboutAllToolScope) {
+        hasWarnedAboutAllToolScope = true;
+        const warning =
+            'Cloakd tool scope is set to all. Non-Cloakd tools may bypass Cloakd anonymization and are planned for deprecation.';
+        CloakdLogger.warn(warning, { workspace: folder.name });
+        void vscode.window.showWarningMessage(warning);
+    }
+
     const visibleTools = toolScope === 'all'
         ? vscode.lm.tools
-        : vscode.lm.tools.filter(t => t.name.startsWith('prompthider_'));
+        : vscode.lm.tools.filter(t => t.name.startsWith('cloakd_'));
 
     return visibleTools.map(t => ({
         name: t.name,
@@ -238,7 +248,7 @@ async function processFileReferences(
                 `[Attached file: ${fileName}]\n\`\`\`\n${anonResult.anonymized}\n\`\`\``
             );
         } catch (error) {
-            PromptHiderLogger.warn('Skipping unreadable or non-anonymizable attachment.', {
+            CloakdLogger.warn('Skipping unreadable or non-anonymizable attachment.', {
                 filePath: ref.value.fsPath,
                 reason: error instanceof Error ? error.message : String(error)
             });
@@ -255,18 +265,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const fallbackWorkspaceFolder = vscode.workspace.workspaceFolders?.[0];
     const idleConfigPath = path.join(
         fallbackWorkspaceFolder?.uri.fsPath ?? context.globalStorageUri.fsPath,
-        '.prompthider',
-        'idle.prompthider.json'
+        '.cloakd',
+        'idle.cloakd.json'
     );
  
     let activeWorkspaceFolder = initialSelection?.workspaceFolder ?? fallbackWorkspaceFolder;
     let activeRulesheetUri = initialSelection?.fileUri;
 
     if (activeWorkspaceFolder) {
-        PromptHiderLogger.setWorkspaceRoot(activeWorkspaceFolder.uri.fsPath);
-        PromptHiderLogger.configure(activeWorkspaceFolder.uri);
+        CloakdLogger.setWorkspaceRoot(activeWorkspaceFolder.uri.fsPath);
+        CloakdLogger.configure(activeWorkspaceFolder.uri);
     }
-    PromptHiderLogger.info('PromptHider activating.', {
+    CloakdLogger.info('Cloakd activating.', {
         workspace: activeWorkspaceFolder?.name ?? 'none',
         rulesheet: activeRulesheetUri ? path.basename(activeRulesheetUri.fsPath) : 'none',
         idle: !activeRulesheetUri,
@@ -290,7 +300,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const mappingsViewProvider = new MappingsViewProvider(tokenManager);
 
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 98);
-    statusBarItem.command = 'prompthider.openUI';
+    statusBarItem.command = 'cloakd.openUI';
     context.subscriptions.push(statusBarItem);
     let lastOperationalIssue: { level: 'error' | 'warn'; message: string } | undefined;
 
@@ -300,9 +310,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         details?: Record<string, unknown>
     ): void => {
         if (level === 'error') {
-            PromptHiderLogger.error(message, details);
+            CloakdLogger.error(message, details);
         } else {
-            PromptHiderLogger.warn(message, details);
+            CloakdLogger.warn(message, details);
         }
 
         lastOperationalIssue = { level, message };
@@ -319,14 +329,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const loadedConfig = activeRulesheetUri ? await configManager.loadFullConfig() : null;
         const ruleCount = loadedConfig?.rules?.length ?? 0;
         const rulesheetName = activeRulesheetUri
-            ? path.basename(activeRulesheetUri.fsPath, '.prompthider.json')
+            ? path.basename(activeRulesheetUri.fsPath, '.cloakd.json')
             : 'No rulesheet selected';
         const workspaceName = activeWorkspaceFolder?.name ?? 'No workspace selected';
         const issuePrefix = lastOperationalIssue
             ? (lastOperationalIssue.level === 'error' ? '$(error) ' : '$(warning) ')
             : '';
 
-        statusBarItem.text = `${issuePrefix}$(shield) PromptHider: ${workspaceName}/${rulesheetName} (${ruleCount})`;
+        statusBarItem.text = `${issuePrefix}$(shield) Cloakd: ${workspaceName}/${rulesheetName} (${ruleCount})`;
         statusBarItem.tooltip =
             `Prompt Hider\n` +
             `Workspace: ${workspaceName}\n` +
@@ -334,7 +344,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             `Rules: ${ruleCount}\n` +
             (lastOperationalIssue ? `Last issue: ${lastOperationalIssue.message}\n` : '') +
             `\n` +
-            `Anonymization is applied only when using the @PromptHider chat participant.`;
+            `Anonymization is applied only when using the @Cloakd chat participant.`;
         statusBarItem.show();
     };
 
@@ -355,19 +365,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         configManager.setConfigFilePath(activeRulesheetUri.fsPath);
         commandExecutor.setConfigurationScope(activeWorkspaceFolder.uri);
         fileSystemTool.setWorkspaceScope(activeWorkspaceFolder.uri);
-        PromptHiderLogger.setWorkspaceRoot(activeWorkspaceFolder.uri.fsPath);
-        PromptHiderLogger.configure(activeWorkspaceFolder.uri);
+        CloakdLogger.setWorkspaceRoot(activeWorkspaceFolder.uri.fsPath);
+        CloakdLogger.configure(activeWorkspaceFolder.uri);
 
         const isRulesheetChanged = previousRulesheetPath !== activeRulesheetUri.fsPath;
         if (reason === 'startup' && shouldAutoClearOnSessionStart(activeWorkspaceFolder)) {
             tokenManager.clearMappings();
-            PromptHiderLogger.info('Token mappings auto-cleared on session start.', {
+            CloakdLogger.info('Token mappings auto-cleared on session start.', {
                 workspace: activeWorkspaceFolder.name,
             });
         }
         if (reason === 'switch' && isRulesheetChanged && shouldAutoClearOnRulesheetSwitch(activeWorkspaceFolder)) {
             tokenManager.clearMappings();
-            PromptHiderLogger.info('Token mappings auto-cleared on rulesheet switch.', {
+            CloakdLogger.info('Token mappings auto-cleared on rulesheet switch.', {
                 workspace: activeWorkspaceFolder.name,
                 rulesheet: path.basename(activeRulesheetUri.fsPath),
             });
@@ -390,7 +400,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         const selection = await selectWorkspaceAndRulesheet(true, activeWorkspaceFolder);
         if (!selection) {
-            const message = 'PromptHider is idle until you select or create a rulesheet.';
+            const message = 'Cloakd is idle until you select or create a rulesheet.';
             reportOperationalIssue('warn', message, { interaction });
             vscode.window.showInformationMessage(message);
             return false;
@@ -404,18 +414,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await applyRulesheetSelection(initialSelection, 'startup');
     } else {
         await updateStatusBar();
-        PromptHiderLogger.warn('PromptHider started in idle mode (no rulesheet selected).');
+        CloakdLogger.warn('Cloakd started in idle mode (no rulesheet selected).');
     }
 
-    const toolDisposable = vscode.lm.registerTool('prompthider_execute_command', commandExecutor);
-    const scpToolDisposable = vscode.lm.registerTool('prompthider_scp_transfer', scpTransferTool);
-    const fileSystemToolDisposable = vscode.lm.registerTool('prompthider_filesystem', fileSystemTool);
+    const toolDisposable = vscode.lm.registerTool('cloakd_execute_command', commandExecutor);
+    const scpToolDisposable = vscode.lm.registerTool('cloakd_scp_transfer', scpTransferTool);
+    const fileSystemToolDisposable = vscode.lm.registerTool('cloakd_filesystem', fileSystemTool);
     context.subscriptions.push(toolDisposable, scpToolDisposable, fileSystemToolDisposable);
 
-    const chatParticipant = vscode.chat.createChatParticipant('prompthider', async (request, chatContext, stream, token) => {
+    const chatParticipant = vscode.chat.createChatParticipant('cloakd', async (request, chatContext, stream, token) => {
         const hasRulesheet = await ensureActiveRulesheet('chat');
         if (!hasRulesheet || !activeWorkspaceFolder) {
-            stream.markdown('**PromptHider** is idle. Select or create a rulesheet to continue.');
+            stream.markdown('**Cloakd** is idle. Select or create a rulesheet to continue.');
             return;
         }
 
@@ -429,12 +439,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 'Prompt anonymization failed. Request was not sent to the model.',
                 { reason: error instanceof Error ? error.message : String(error) }
             );
-            stream.markdown('**PromptHider error**: Failed to anonymize your prompt safely. The request was stopped to avoid exposing raw sensitive values.');
+            stream.markdown('**Cloakd error**: Failed to anonymize your prompt safely. The request was stopped to avoid exposing raw sensitive values.');
             return;
         }
 
         if (result.stats.totalMatches > 0) {
-            stream.markdown(`> **PromptHider**: ${result.stats.totalMatches} pattern(s) anonymized before sending.\n\n`);
+            stream.markdown(`> **Cloakd**: ${result.stats.totalMatches} pattern(s) anonymized before sending.\n\n`);
             mappingsViewProvider.refresh();
         }
 
@@ -473,7 +483,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         const fileParts = await processFileReferences(request.references, anonymizationEngine);
         if (fileParts.length > 0) {
-            stream.markdown(`> **PromptHider**: ${fileParts.length} file(s) attached and anonymized.\n\n`);
+            stream.markdown(`> **Cloakd**: ${fileParts.length} file(s) attached and anonymized.\n\n`);
         }
 
         const currentUserMessage = fileParts.length > 0
@@ -486,7 +496,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const tokenList = [...new Set(activeTokens.values())].join(', ');
             messages.unshift(
                 vscode.LanguageModelChatMessage.User(
-                    `[SYSTEM — PromptHider context]\n` +
+                    `[SYSTEM — Cloakd context]\n` +
                     `The following anonymized tokens are currently active: ${tokenList}.\n` +
                     `When referring to these values or using tools, use these EXACT token names as they appear above. ` +
                     `Do NOT rename, reformat, or standardize them.\n` +
@@ -507,7 +517,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 iterations++;
 
                 if (iterations > maxToolRounds) {
-                    stream.markdown('\n\n> **PromptHider**: Reached maximum tool-call rounds. Stopping.\n');
+                    stream.markdown('\n\n> **Cloakd**: Reached maximum tool-call rounds. Stopping.\n');
                     break;
                 }
 
@@ -572,8 +582,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
         } catch (err) {
             if (err instanceof vscode.LanguageModelError) {
-                console.error('[PromptHider] LM error:', err.message, err.code);
-                stream.markdown(`**PromptHider error**: ${err.message}`);
+                console.error('[Cloakd] LM error:', err.message, err.code);
+                stream.markdown(`**Cloakd error**: ${err.message}`);
             } else {
                 throw err;
             }
@@ -584,11 +594,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     context.subscriptions.push(chatParticipant);
 
-    vscode.window.registerTreeDataProvider('prompthider.mappingsView', mappingsViewProvider);
+    vscode.window.registerTreeDataProvider('cloakd.mappingsView', mappingsViewProvider);
     mappingsViewProvider.refresh();
     vscode.window.registerWebviewViewProvider(RuleEditorProvider.viewType, ruleEditorProvider);
 
-    const openWebUI = vscode.commands.registerCommand('prompthider.openUI', () => {
+    const openWebUI = vscode.commands.registerCommand('cloakd.openUI', () => {
         if (!activeRulesheetUri) {
             void ensureActiveRulesheet('openUI').then(hasRulesheet => {
                 if (!hasRulesheet) {
@@ -601,11 +611,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         mainUIProvider.show(context, configManager, updateStatusBar);
     });
 
-    const showMappingsCommand = vscode.commands.registerCommand('prompthider.showMappings', () => {
+    const showMappingsCommand = vscode.commands.registerCommand('cloakd.showMappings', () => {
         mappingsViewProvider.refresh();
     });
 
-    const clearMappingsCommand = vscode.commands.registerCommand('prompthider.clearMappings', async () => {
+    const clearMappingsCommand = vscode.commands.registerCommand('cloakd.clearMappings', async () => {
         const answer = await vscode.window.showWarningMessage(
             'Are you sure you want to clear all token mappings?',
             'Yes',
@@ -618,7 +628,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
     });
 
-    const switchRulesheetCommand = vscode.commands.registerCommand('prompthider.switchRulesheet', async () => {
+    const switchRulesheetCommand = vscode.commands.registerCommand('cloakd.switchRulesheet', async () => {
         const selection = await selectWorkspaceAndRulesheet(true, activeWorkspaceFolder);
         if (!selection) {
             return;
@@ -630,11 +640,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
     });
 
-    const activateCommand = vscode.commands.registerCommand('prompthider.activate', async () => {
-        await vscode.commands.executeCommand('prompthider.switchRulesheet');
+    const activateCommand = vscode.commands.registerCommand('cloakd.activate', async () => {
+        await vscode.commands.executeCommand('cloakd.switchRulesheet');
     });
 
-    const anonymizeSelectionCommand = vscode.commands.registerCommand('prompthider.anonymize', async () => {
+    const anonymizeSelectionCommand = vscode.commands.registerCommand('cloakd.anonymize', async () => {
         const hasRulesheet = await ensureActiveRulesheet('anonymizeSelection');
         if (!hasRulesheet) {
             return;
@@ -656,12 +666,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         mappingsViewProvider.refresh();
     });
 
-    const openRuleEditorCommand = vscode.commands.registerCommand('prompthider.openRuleEditor', async () => {
-        await vscode.commands.executeCommand('workbench.view.extension.prompthider-sidebar');
-        await vscode.commands.executeCommand('prompthider.openUI');
+    const openRuleEditorCommand = vscode.commands.registerCommand('cloakd.openRuleEditor', async () => {
+        await vscode.commands.executeCommand('workbench.view.extension.cloakd-sidebar');
+        await vscode.commands.executeCommand('cloakd.openUI');
     });
 
-    const scanIacFileCommand = vscode.commands.registerCommand('prompthider.scanIacFile', async () => {
+    const scanIacFileCommand = vscode.commands.registerCommand('cloakd.scanIacFile', async () => {
         const hasRulesheet = await ensureActiveRulesheet('scanIac');
         if (!hasRulesheet) {
             return;
@@ -730,7 +740,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     // quick-add rule command
     context.subscriptions.push(
-        vscode.commands.registerCommand('prompthider.quickAddRule', async () => {
+        vscode.commands.registerCommand('cloakd.quickAddRule', async () => {
             const editor = vscode.window.activeTextEditor;
             const selection = editor?.selection;
             const selectedText = selection && !selection.isEmpty ? editor.document.getText(selection) : undefined;
@@ -766,7 +776,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             // Actually add the rule to the path
             const configPath = await configManager.getConfigFilePath();
             if (!configPath) {
-                vscode.window.showErrorMessage('PromptHider: No config found or created.');
+                vscode.window.showErrorMessage('Cloakd: No config found or created.');
                 return;
             }
 

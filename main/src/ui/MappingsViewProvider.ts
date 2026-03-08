@@ -37,7 +37,7 @@ export class MappingsViewProvider implements vscode.TreeDataProvider<MappingItem
 
         if (items.length === 0) {
             return Promise.resolve([
-                new MappingItem('No mappings yet', 'Use @PromptHider to create mappings', vscode.TreeItemCollapsibleState.None)
+                new MappingItem('No mappings yet', 'Use @Cloakd to create mappings', vscode.TreeItemCollapsibleState.None)
             ]);
         }
 

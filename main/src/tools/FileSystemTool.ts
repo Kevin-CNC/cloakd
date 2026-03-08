@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { AnonymizationEngine } from '../anonymizer/AnonymizationEngine';
 import { TokenManager } from '../anonymizer/TokenManager';
-import { PromptHiderLogger } from '../utils/PromptHiderLogger';
+import { CloakdLogger } from '../utils/CloakdLogger';
 
 type FileSystemOperation = 'read' | 'write' | 'patch' | 'delete' | 'list';
 
@@ -60,7 +60,7 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
         return {
             invocationMessage,
             confirmationMessages: {
-                title: 'Allow PromptHider to modify workspace files?',
+                title: 'Allow Cloakd to modify workspace files?',
                 message: `Operation: ${op}\nTarget: ${targetPath}`,
             },
         };
@@ -91,7 +91,7 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
             }
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            PromptHiderLogger.warn('Filesystem tool invocation failed.', {
+            CloakdLogger.warn('Filesystem tool invocation failed.', {
                 operation: input.operation,
                 targetPath: input.path,
                 reason: message,
@@ -105,7 +105,7 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
         const content = Buffer.from(bytes).toString('utf8');
         const anonymized = await this.anonymizationEngine.anonymize(content);
 
-        PromptHiderLogger.info('Filesystem read completed.', {
+        CloakdLogger.info('Filesystem read completed.', {
             targetPath: targetUri.fsPath,
             bytes: bytes.byteLength,
         });
@@ -127,7 +127,7 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
             await vscode.workspace.fs.writeFile(targetUri, data);
         }
 
-        PromptHiderLogger.info('Filesystem write completed.', {
+        CloakdLogger.info('Filesystem write completed.', {
             targetPath: targetUri.fsPath,
             bytes: data.byteLength,
             mode: usedWorkspaceEdit ? 'workspaceEdit' : 'filesystem',
@@ -176,7 +176,7 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
             await vscode.workspace.fs.writeFile(targetUri, Buffer.from(updatedContent, 'utf8'));
         }
 
-        PromptHiderLogger.info('Filesystem patch completed.', {
+        CloakdLogger.info('Filesystem patch completed.', {
             targetPath: targetUri.fsPath,
             occurrenceCount,
             replaceAll,
@@ -190,7 +190,7 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
     private async deletePath(targetUri: vscode.Uri, recursive: boolean): Promise<vscode.LanguageModelToolResult> {
         await vscode.workspace.fs.delete(targetUri, { recursive, useTrash: false });
 
-        PromptHiderLogger.info('Filesystem delete completed.', {
+        CloakdLogger.info('Filesystem delete completed.', {
             targetPath: targetUri.fsPath,
             recursive,
         });
@@ -212,7 +212,7 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
             })
             .join('\n');
 
-        PromptHiderLogger.info('Filesystem list completed.', {
+        CloakdLogger.info('Filesystem list completed.', {
             targetPath: targetUri.fsPath,
             count: entries.length,
         });
