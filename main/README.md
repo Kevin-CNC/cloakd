@@ -1,9 +1,7 @@
 # Cloakd
 
-<div align="center">
-  <img src="images/vscodeLogo.png" alt="Cloakd Logo" width="96" height="96"/>
-  
-  **Anonymize sensitive data before it reaches language models.**
+<div align="center">  
+  <b>Anonymize sensitive data before it reaches language models.</b>
 </div>
 
 ---
