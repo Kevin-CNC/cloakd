@@ -3,7 +3,7 @@
   "displayName": "Cloakd",
   "description": "VS Code extension to automatically anonymize sensitive data in prompts and tool payloads before they reach language models. Maintain privacy boundaries, prevent secret leakage, and enable secure team rulesheet sharing.",
   "version": "1.0.0",
-  "publisher": "kevincaplescu",
+  "publisher": "kevincncaplescu",
   "repository": {
     "type": "git",
     "url": "https://github.com/Kevin-CNC/cloakd"
