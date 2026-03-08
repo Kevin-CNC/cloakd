@@ -4,7 +4,7 @@
     <header class="header">
       <div class="title-area">
         <span class="codicon codicon-shield" aria-hidden="true"></span>
-        <h1 class="title">Prompt Hider</h1>
+        <h1 class="title">Cloakd</h1>
         <span class="workspace-badge" :title="'Active workspace: ' + workspaceName">{{ workspaceName }}</span>
         <span class="rulesheet-badge" :title="'Active rulesheet: ' + rulesheetName">{{ rulesheetName }}</span>
       </div>
