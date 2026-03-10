@@ -296,7 +296,7 @@
       "view/title": [
         {
           "command": "cloakd.openUI",
-          "when": "view == cloakd.mappingsView || view == cloakd.rulesView",
+          "when": "view == cloakd.mappingsView",
           "group": "navigation"
         }
       ],
