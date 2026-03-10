@@ -5,3 +5,4 @@ notes/*
 node_modules/
 .cloakd/defaultSheet.cloakd.json
 .cloakd/
+.vscode/
