@@ -3,6 +3,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { ConfigManager } from '../utils/ConfigManager';
 import { validateRules } from '../anonymizer/RuleValidator';
+import {
+    exportableRules,
+    normalizeImportedRules,
+    normalizeRuleForStorage,
+    toWebviewRule
+} from '../utils/RuleMetadata';
 
 export class mainUIProvider {
     private static currentPanel: vscode.WebviewPanel | undefined;
@@ -84,22 +90,16 @@ export class mainUIProvider {
                     if (!activeConfig) { break; }
                     const incomingRules = message.rules as any[];
                     const diskConfig = await activeConfig.loadFullConfig();
-                    let updatedRules = Array.isArray(diskConfig?.rules) ? diskConfig.rules.map((diskRule: any) => {
+                    const diskRules = Array.isArray(diskConfig?.rules) ? diskConfig.rules : [];
+                    let updatedRules = diskRules.map((diskRule: any) => {
                         const incoming = incomingRules.find((r: any) => r.id === diskRule.id);
                         if (!incoming) return diskRule;
-                        return {
-                            ...diskRule,
-                            pattern: incoming.pattern,
-                            replacement: incoming.replacement,
-                            type: incoming.type,
-                            enabled: incoming.enabled,
-                            description: incoming.description,
-                        };
-                    }) : [];
+                        return normalizeRuleForStorage(incoming, diskRule);
+                    });
                     // Add any new rules
                     for (const incoming of incomingRules) {
                         if (!updatedRules.find((r: any) => r.id === incoming.id)) {
-                            updatedRules.push(incoming);
+                            updatedRules.push(normalizeRuleForStorage(incoming));
                         }
                     }
                     const validation = validateRules(updatedRules);
@@ -144,16 +144,12 @@ export class mainUIProvider {
                     const currentRules = Array.isArray(loadedProject?.rules) ? loadedProject.rules : [];
                     const ruleExistsIndx = currentRules.findIndex((r: any) => r.id === ruleCarried.id);
                     if (ruleExistsIndx !== -1) {
-                        currentRules[ruleExistsIndx] = {
-                            ...currentRules[ruleExistsIndx],
-                            pattern: ruleCarried.pattern,
-                            replacement: ruleCarried.replacement,
-                            type: ruleCarried.type,
-                            enabled: ruleCarried.enabled,
-                            description: ruleCarried.description,
-                        };
+                        currentRules[ruleExistsIndx] = normalizeRuleForStorage(
+                            ruleCarried,
+                            currentRules[ruleExistsIndx]
+                        );
                     } else {
-                        currentRules.push(ruleCarried);
+                        currentRules.push(normalizeRuleForStorage(ruleCarried));
                     }
                     const validation = validateRules(currentRules);
                     if (!validation.valid) {
@@ -266,17 +262,11 @@ export class mainUIProvider {
         const name = configManager.getRulesheetName();
         webview.postMessage({
             command: 'init',
+            viewMode: 'main',
             rulesheetName: name,
             workspaceName: configManager.getWorkspaceFolderName(),
             rulesheetPath: configManager.getConfigFilePath(),
-            rules: (config?.rules ?? []).map(r => ({
-                id: r.id,
-                pattern: typeof r.pattern === 'string' ? r.pattern : r.pattern.source,
-                replacement: r.replacement,
-                type: r.type,
-                enabled: r.enabled,
-                description: r.description,
-            })),
+            rules: (config?.rules ?? []).map(r => toWebviewRule(r)),
             enabled: config?.enabled ?? false,
         });
     }
@@ -301,18 +291,7 @@ export class mainUIProvider {
             const content = fs.readFileSync(picked[0].fsPath, 'utf8');
             const parsed = JSON.parse(content) as any;
             const sourceRules = Array.isArray(parsed) ? parsed : Array.isArray(parsed.rules) ? parsed.rules : [];
-            const normalizedRules = sourceRules
-                .map((r: any) => ({
-                    id: String(r.id ?? `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
-                    pattern: typeof r.pattern === 'string' ? r.pattern : String(r.pattern?.source ?? ''),
-                    replacement: String(r.replacement ?? ''),
-                    type: ['ip', 'email', 'uuid', 'secret', 'api-key', 'path', 'jwt', 'private-key', 'custom'].includes(String(r.type))
-                        ? String(r.type)
-                        : 'custom',
-                    enabled: r.enabled !== undefined ? Boolean(r.enabled) : true,
-                    description: r.description ? String(r.description) : '',
-                }))
-                .filter((r: { pattern: string; replacement: string }) => r.pattern.trim() !== '' || r.replacement.trim() !== '');
+            const normalizedRules = normalizeImportedRules(sourceRules);
 
             webview.postMessage({
                 command: 'importedRules',
@@ -337,16 +316,7 @@ export class mainUIProvider {
         }
 
         try {
-            const normalizedRules = (rules ?? [])
-                .map(r => ({
-                    id: String(r.id),
-                    pattern: String(r.pattern ?? ''),
-                    replacement: String(r.replacement ?? ''),
-                    type: String(r.type ?? 'custom'),
-                    enabled: Boolean(r.enabled ?? true),
-                    description: r.description ? String(r.description) : '',
-                }))
-                .filter((r: { pattern: string; replacement: string }) => r.pattern.trim() !== '' || r.replacement.trim() !== '');
+            const normalizedRules = exportableRules(rules ?? []);
 
             fs.writeFileSync(saveUri.fsPath, JSON.stringify({
                 version: 1,
