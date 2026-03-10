@@ -15,11 +15,18 @@
   "categories": [
     "Other",
     "Machine Learning",
-    "Snippets"
+    "Snippets",
+    "Keymaps",
+    "AI",
+    "Chat",
+    "Testing"
   ],
   "keywords": [
     "privacy",
     "security",
+    "keymaps",
+    "tokenization",
+    "chat",
     "ai",
     "anonymization",
     "pii",
