@@ -64,6 +64,8 @@ TypeScript • VS Code Extension API • Vue.js 3 • Tailwind CSS • Vite • 
 - `cloakd.switchRulesheet` — Switch active ruleset
 - `cloakd.quickAddRule` — Add a rule from command palette
 
+Cloakd activates lazily when a Cloakd command, sidebar view, or `@Cloakd` chat is used to ensure a smoother development experience with, or without it.
+
 ---
 
 ## Getting Started
@@ -97,10 +99,10 @@ TypeScript • VS Code Extension API • Vue.js 3 • Tailwind CSS • Vite • 
 |---------|---------|-------------|
 | `cloakd.agent.maxToolRounds` | `10` | Max tool execution rounds |
 | `cloakd.agent.executionMode` | `captured` | Tool mode: `captured` or `terminal` |
-| `cloakd.agent.toolScope` | `all` | Available tools: `cloakdOnly` or `all` |
-| `cloakd.mappings.autoClearOnSessionStart` | `false` | Clear mappings on new session |
-| `cloakd.mappings.autoClearOnRulesheetSwitch` | `false` | Clear mappings on ruleset switch |
-| `cloakd.logging.level` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `cloakd.agent.toolScope` | `cloakdOnly` | Available tools: `cloakdOnly` or `all` |
+| `cloakd.mappings.autoClearOnSessionStart` | `true` | Clear mappings on new session |
+| `cloakd.mappings.autoClearOnRulesheetSwitch` | `true` | Deprecated compatibility switch. Cloakd always clears mappings on rulesheet switch. |
+| `cloakd.logging.level` | `warn` | Log level: `debug`, `info`, `warn`, `error` |
 
 ---
 
