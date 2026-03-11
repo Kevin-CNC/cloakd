@@ -60,9 +60,16 @@ TypeScript • VS Code Extension API • Vue.js 3 • Tailwind CSS • Vite • 
 - `cloakd.openRuleEditor` — Open sidebar rule editor
 - `cloakd.showMappings` — Display current token mappings
 - `cloakd.clearMappings` — Clear all token mappings
+- `cloakd.scanCurrentFile` — Scan the active editor for likely secrets
 - `cloakd.scanIacFile` — Scan file for detectable secrets
+- `cloakd.scanSecrets` — Pick a file and scan it for likely secrets
 - `cloakd.switchRulesheet` — Switch active ruleset
 - `cloakd.quickAddRule` — Add a rule from command palette
+
+**Default keybindings:**
+- `Ctrl+Shift+A` — Quick add a rule from the current selection
+- `Ctrl+Alt+S` — Scan the current open file for likely secrets
+- `Ctrl+Alt+Shift+S` — Pick a file and scan it for likely secrets
 
 Cloakd activates lazily when a Cloakd command, sidebar view, or `@Cloakd` chat is used to ensure a smoother development experience with, or without it.
 
