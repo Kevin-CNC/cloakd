@@ -1,15 +1,27 @@
 <template>
   <div class="rule-editor-container">
     <div class="search-bar-wrapper">
-      <vscode-text-field
-        :value="searchQuery"
-        @input="onSearchInput"
-        placeholder="Search patterns, replacements, or descriptions..."
-        class="search-bar"
-        aria-label="Search rules"
-      >
-        <span slot="start" class="codicon codicon-search"></span>
-      </vscode-text-field>
+      <div class="search-toolbar">
+        <vscode-text-field
+          :value="searchQuery"
+          @input="onSearchInput"
+          placeholder="Search patterns, replacements, or descriptions..."
+          class="search-bar"
+          aria-label="Search rules"
+        >
+          <span slot="start" class="codicon codicon-search"></span>
+        </vscode-text-field>
+        <vscode-button
+          appearance="secondary"
+          class="help-toggle"
+          @click="toggleHelpPanel"
+          :title="showHelpPanel ? 'Hide keybindings and controls' : 'Show keybindings and controls'"
+          aria-label="Toggle keybindings and controls help"
+        >
+          <span slot="start" class="codicon" :class="showHelpPanel ? 'codicon-chevron-up' : 'codicon-question'"></span>
+          {{ showHelpPanel ? 'Hide Help' : 'Help' }}
+        </vscode-button>
+      </div>
 
       <ul v-if="showSuggestions && filteredSuggestions.length > 0" class="autocomplete-list" role="listbox">
         <li
@@ -22,6 +34,43 @@
         </li>
       </ul>
     </div>
+
+    <Transition name="fade">
+      <section v-if="showHelpPanel" class="help-panel" aria-label="Keybindings and controls help">
+        <div class="help-grid">
+          <article class="help-card">
+            <h3 class="help-title">Keybindings</h3>
+            <div v-for="entry in keybindingEntries" :key="entry.label" class="help-entry">
+              <div class="help-entry-top">
+                <strong>{{ entry.label }}</strong>
+                <kbd class="shortcut">{{ entry.shortcut }}</kbd>
+              </div>
+              <p>{{ entry.description }}</p>
+            </div>
+          </article>
+
+          <article class="help-card">
+            <h3 class="help-title">Toolbar Actions</h3>
+            <div v-for="entry in toolbarEntries" :key="entry.label" class="help-entry">
+              <div class="help-entry-top">
+                <strong>{{ entry.label }}</strong>
+              </div>
+              <p>{{ entry.description }}</p>
+            </div>
+          </article>
+
+          <article class="help-card">
+            <h3 class="help-title">Editor Controls</h3>
+            <div v-for="entry in editorEntries" :key="entry.label" class="help-entry">
+              <div class="help-entry-top">
+                <strong>{{ entry.label }}</strong>
+              </div>
+              <p>{{ entry.description }}</p>
+            </div>
+          </article>
+        </div>
+      </section>
+    </Transition>
 
     <div class="rules-grid-wrapper">
       <div class="grid-header" aria-hidden="true">
@@ -161,9 +210,17 @@
         <span slot="start" class="codicon codicon-cloud-download"></span>
         Export Rules
       </vscode-button>
+      <vscode-button appearance="secondary" @click="emit('scanCurrentFile')">
+        <span slot="start" class="codicon codicon-file-code"></span>
+        Scan Current File
+      </vscode-button>
       <vscode-button appearance="secondary" @click="emit('scanIacFile')">
         <span slot="start" class="codicon codicon-search"></span>
         Scan IaC File
+      </vscode-button>
+      <vscode-button appearance="secondary" @click="emit('scanSecrets')">
+        <span slot="start" class="codicon codicon-shield"></span>
+        Scan File...
       </vscode-button>
       <vscode-button v-if="props.viewMode === 'sidebar'" appearance="secondary" @click="emit('openMainUi')" title="Open the full Cloakd panel">
         <span slot="start" class="codicon codicon-window"></span>
@@ -254,6 +311,12 @@ interface SaveAck {
   timestamp: number;
 }
 
+interface HelpEntry {
+  label: string;
+  description: string;
+  shortcut?: string;
+}
+
 const props = defineProps<{
   rules: RuleRow[];
   viewMode?: 'main' | 'sidebar';
@@ -267,7 +330,9 @@ const emit = defineEmits<{
   (e: 'saveRules', rules: RuleRow[]): void;
   (e: 'saveSingleRule', rule: RuleRow): void;
   (e: 'deleteRule', ruleId: string): void;
+  (e: 'scanCurrentFile'): void;
   (e: 'scanIacFile'): void;
+  (e: 'scanSecrets'): void;
   (e: 'openMainUi'): void;
   (e: 'importRules'): void;
   (e: 'exportRules', rules: RuleRow[]): void;
@@ -278,10 +343,94 @@ const emit = defineEmits<{
 const localRules = ref<RuleRow[]>([]);
 const ruleToDelete = ref<RuleRow | null>(null);
 const dirtyIds = ref<Set<string>>(new Set());
+const showHelpPanel = ref(false);
 
 const searchQuery = ref('');
 const showSuggestions = ref(false);
 const suggestions = ref<string[]>([]);
+
+const keybindingEntries: HelpEntry[] = [
+  {
+    label: 'Quick Add Rule',
+    shortcut: 'Ctrl+Shift+A',
+    description: 'Build a new anonymization rule from the text currently selected in the editor.',
+  },
+  {
+    label: 'Scan Current File',
+    shortcut: 'Ctrl+Alt+S',
+    description: 'Analyze the active editor and push likely secret findings into the Cloakd UI for review.',
+  },
+  {
+    label: 'Scan File Picker',
+    shortcut: 'Ctrl+Alt+Shift+S',
+    description: 'Open a file picker and scan a saved file without changing the active editor tab.',
+  },
+];
+
+const toolbarEntries = computed<HelpEntry[]>(() => {
+  const entries: HelpEntry[] = [
+    {
+      label: 'Add Rule',
+      description: 'Append a new empty rule row and mark it dirty until you save it.',
+    },
+    {
+      label: 'Import Rules',
+      description: 'Load rules from a JSON export into the editor without writing them to disk until you save.',
+    },
+    {
+      label: 'Export Rules',
+      description: 'Write the current editor state to a portable JSON file for reuse across projects.',
+    },
+    {
+      label: 'Scan Current File',
+      description: 'Scan the active editor tab and add likely secret matches as pending rules.',
+    },
+    {
+      label: 'Scan IaC File',
+      description: 'Run the infrastructure scanner to capture IaC patterns, identifiers, and resource names.',
+    },
+    {
+      label: 'Scan File...',
+      description: 'Choose any supported file from disk and run the tighter secret scanner against it.',
+    },
+    {
+      label: 'Save All',
+      description: 'Persist every dirty row after validation passes.',
+    },
+  ];
+
+  if (props.viewMode === 'sidebar') {
+    entries.push({
+      label: 'Open Main UI',
+      description: 'Open the larger panel view when you need more space for editing or reviewing scan results.',
+    });
+  }
+
+  return entries;
+});
+
+const editorEntries: HelpEntry[] = [
+  {
+    label: 'Search Bar',
+    description: 'Filter rules by pattern, replacement, or description and pick from autocomplete suggestions.',
+  },
+  {
+    label: 'Dirty Marker',
+    description: 'A gold bar on the left edge means the row has unsaved changes.',
+  },
+  {
+    label: 'Row Save',
+    description: 'Use the disk icon to validate and save a single rule without committing the rest of the table.',
+  },
+  {
+    label: 'Row Delete',
+    description: 'Use the trash icon to remove a rule after confirmation.',
+  },
+  {
+    label: 'Scan Results',
+    description: 'Imported or scanned findings are appended as dirty rows so you can adjust them before saving.',
+  },
+];
 
 const filteredSuggestions = computed(() => {
   if (!searchQuery.value.trim()) return [];
@@ -324,6 +473,10 @@ function onSearchInput(event: Event) {
 function applySuggestion(suggestion: string) {
   searchQuery.value = suggestion;
   showSuggestions.value = false;
+}
+
+function toggleHelpPanel() {
+  showHelpPanel.value = !showHelpPanel.value;
 }
 
 const toasts = ref<Toast[]>([]);
@@ -605,8 +758,19 @@ function exportRules() {
   background-color: var(--vscode-editor-background);
 }
 
+.search-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .search-bar {
   width: 100%;
+  flex: 1;
+}
+
+.help-toggle {
+  flex-shrink: 0;
 }
 
 .autocomplete-list {
@@ -622,6 +786,69 @@ function exportRules() {
   border: 1px solid var(--vscode-editorWidget-border);
   background-color: var(--vscode-editorWidget-background);
   z-index: 20;
+}
+
+.help-panel {
+  padding: 12px 20px 14px;
+  border-bottom: 1px solid var(--vscode-editorGroup-border);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--vscode-editorWidget-background) 88%, transparent), transparent),
+    var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.help-card {
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-editorGroup-border));
+  border-radius: 10px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 86%, transparent);
+  box-shadow: 0 8px 24px -18px rgba(0, 0, 0, 0.45);
+}
+
+.help-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vscode-descriptionForeground);
+}
+
+.help-entry + .help-entry {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--vscode-editorGroup-border);
+}
+
+.help-entry-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.help-entry p {
+  margin: 0;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.45;
+  font-size: 12px;
+}
+
+.shortcut {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-editorGroup-border));
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  white-space: nowrap;
 }
 
 .autocomplete-item {
@@ -973,5 +1200,16 @@ function exportRules() {
 .dialog-enter-active .dialog-content,
 .dialog-leave-active .dialog-content {
   transition: transform 0.2s ease;
+}
+
+@media (max-width: 960px) {
+  .search-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .help-toggle {
+    width: 100%;
+  }
 }
 </style>
