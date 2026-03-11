@@ -48,26 +48,6 @@
               <p>{{ entry.description }}</p>
             </div>
           </article>
-
-          <article class="help-card">
-            <h3 class="help-title">Toolbar Actions</h3>
-            <div v-for="entry in toolbarEntries" :key="entry.label" class="help-entry">
-              <div class="help-entry-top">
-                <strong>{{ entry.label }}</strong>
-              </div>
-              <p>{{ entry.description }}</p>
-            </div>
-          </article>
-
-          <article class="help-card">
-            <h3 class="help-title">Editor Controls</h3>
-            <div v-for="entry in editorEntries" :key="entry.label" class="help-entry">
-              <div class="help-entry-top">
-                <strong>{{ entry.label }}</strong>
-              </div>
-              <p>{{ entry.description }}</p>
-            </div>
-          </article>
         </div>
       </section>
     </Transition>
@@ -364,71 +344,6 @@ const keybindingEntries: HelpEntry[] = [
     label: 'Scan File Picker',
     shortcut: 'Ctrl+Alt+Shift+S',
     description: 'Open a file picker and scan a saved file without changing the active editor tab.',
-  },
-];
-
-const toolbarEntries = computed<HelpEntry[]>(() => {
-  const entries: HelpEntry[] = [
-    {
-      label: 'Add Rule',
-      description: 'Append a new empty rule row and mark it dirty until you save it.',
-    },
-    {
-      label: 'Import Rules',
-      description: 'Load rules from a JSON export into the editor without writing them to disk until you save.',
-    },
-    {
-      label: 'Export Rules',
-      description: 'Write the current editor state to a portable JSON file for reuse across projects.',
-    },
-    {
-      label: 'Scan Current File',
-      description: 'Scan the active editor tab and add likely secret matches as pending rules.',
-    },
-    {
-      label: 'Scan IaC File',
-      description: 'Run the infrastructure scanner to capture IaC patterns, identifiers, and resource names.',
-    },
-    {
-      label: 'Scan File...',
-      description: 'Choose any supported file from disk and run the tighter secret scanner against it.',
-    },
-    {
-      label: 'Save All',
-      description: 'Persist every dirty row after validation passes.',
-    },
-  ];
-
-  if (props.viewMode === 'sidebar') {
-    entries.push({
-      label: 'Open Main UI',
-      description: 'Open the larger panel view when you need more space for editing or reviewing scan results.',
-    });
-  }
-
-  return entries;
-});
-
-const editorEntries: HelpEntry[] = [
-  {
-    label: 'Search Bar',
-    description: 'Filter rules by pattern, replacement, or description and pick from autocomplete suggestions.',
-  },
-  {
-    label: 'Dirty Marker',
-    description: 'A gold bar on the left edge means the row has unsaved changes.',
-  },
-  {
-    label: 'Row Save',
-    description: 'Use the disk icon to validate and save a single rule without committing the rest of the table.',
-  },
-  {
-    label: 'Row Delete',
-    description: 'Use the trash icon to remove a rule after confirmation.',
-  },
-  {
-    label: 'Scan Results',
-    description: 'Imported or scanned findings are appended as dirty rows so you can adjust them before saving.',
   },
 ];
 
