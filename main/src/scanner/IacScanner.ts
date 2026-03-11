@@ -3,10 +3,12 @@ import * as path from 'path';
 
 export interface ScannedRule {
     id: string;
-    pattern: string;       // regex source (string)
-    replacement: string;    // suggested token name
-    description: string;    // human-readable explanation
-    source: string;         // e.g. "terraform"
+    pattern: string;
+    replacement: string;
+    description: string;
+    source: string;
+    confidence?: number;
+    confidenceLevel?: 'high' | 'medium' | 'low';
 }
 
 // ─────────────────────────────────────────────────────────
