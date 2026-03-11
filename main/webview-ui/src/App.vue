@@ -25,7 +25,9 @@
       @save-rules="handleSaveRules"
       @save-single-rule="handleSaveSingleRule"
       @delete-rule="handleDeleteRule"
+      @scan-current-file="handleScanCurrentFile"
       @scan-iac-file="handleScanIacFile"
+      @scan-secrets="handleScanSecrets"
       @open-main-ui="handleOpenMainUi"
       @scanned-rules-consumed="pendingScannedRules = []"
       @import-rules="handleImportRules"
@@ -109,8 +111,16 @@ function handleDeleteRule(ruleId: string) {
   vscode.postMessage({ command: 'deleteRule', id: ruleId });
 }
 
+function handleScanCurrentFile() {
+  vscode.postMessage({ command: 'scanCurrentFile' });
+}
+
 function handleScanIacFile() {
   vscode.postMessage({ command: 'scanIacFile' });
+}
+
+function handleScanSecrets() {
+  vscode.postMessage({ command: 'scanSecrets' });
 }
 
 function handleOpenMainUi() {
