@@ -10,6 +10,7 @@ import { CommandExecutor } from './tools/CommandExecutor';
 import { ScpTransferTool } from './tools/ScpTransferTool';
 import { FileSystemTool } from './tools/FileSystemTool';
 import { IacScanner } from './scanner/IacScanner';
+import { SecretScanner } from './scanner/SecretScanner';
 import { CloakdLogger } from './utils/CloakdLogger';
 import { validateRules } from './anonymizer/RuleValidator';
 import * as fs from 'fs';
@@ -388,7 +389,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     };
 
     const ensureActiveRulesheet = async (
-        interaction: 'chat' | 'openUI' | 'scanIac' | 'anonymizeSelection' | 'switch'
+        interaction: 'chat' | 'openUI' | 'scanIac' | 'scanSecrets' | 'scanCurrentFile' | 'anonymizeSelection' | 'switch'
     ): Promise<boolean> => {
         if (activeWorkspaceFolder && activeRulesheetUri) {
             return true;
@@ -408,6 +409,117 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     await updateStatusBar();
     CloakdLogger.info('Cloakd started in lazy mode. Rulesheet selection is deferred until first use.');
+
+    const publishScannedRules = (fileName: string, scannedRules: Array<{
+        id: string;
+        pattern: string;
+        replacement: string;
+        confidence?: number;
+        confidenceLevel?: 'high' | 'medium' | 'low';
+        source: string;
+    }>): void => {
+        mainUIProvider.show(context, configManager, updateStatusBar);
+
+        setTimeout(() => {
+            mainUIProvider.postMessage({
+                command: 'scannedRules',
+                rules: scannedRules,
+                fileName,
+            });
+        }, 500);
+    };
+
+    const scanSecretsWithProgress = async (
+        displayName: string,
+        scanOperation: (
+            scanner: SecretScanner,
+            onProgress: (percent: number) => void,
+            cancellationToken: vscode.CancellationToken,
+        ) => Promise<Array<{
+            id: string;
+            pattern: string;
+            replacement: string;
+            confidence?: number;
+            confidenceLevel?: 'high' | 'medium' | 'low';
+            source: string;
+        }>>,
+    ): Promise<void> => {
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: `Scanning ${displayName} for secrets...`,
+                cancellable: true,
+            },
+            async (progress, cancellationToken) => {
+                try {
+                    const scanner = new SecretScanner();
+                    let lastReported = 0;
+                    const scannedRules = await scanOperation(scanner, (percent) => {
+                        const safePercent = Math.max(lastReported, Math.min(100, Math.round(percent)));
+                        progress.report({
+                            increment: safePercent - lastReported,
+                            message: `${safePercent}%`,
+                        });
+                        lastReported = safePercent;
+                    }, cancellationToken);
+
+                    if (cancellationToken.isCancellationRequested) {
+                        return;
+                    }
+
+                    if (scannedRules.length === 0) {
+                        vscode.window.showInformationMessage(`No likely secrets detected in ${displayName}.`);
+                        return;
+                    }
+
+                    publishScannedRules(displayName, scannedRules.map(rule => ({
+                        id: rule.id,
+                        pattern: rule.pattern,
+                        replacement: rule.replacement,
+                        confidence: rule.confidence,
+                        confidenceLevel: rule.confidenceLevel,
+                        source: rule.source,
+                    })));
+
+                    vscode.window.showInformationMessage(
+                        `Found ${scannedRules.length} likely secret${scannedRules.length === 1 ? '' : 's'} in ${displayName}. Review and save in the UI.`
+                    );
+                } catch (err) {
+                    vscode.window.showErrorMessage(
+                        `Failed to scan ${displayName}: ${err instanceof Error ? err.message : 'Unknown error'}`
+                    );
+                }
+            }
+        );
+    };
+
+    const scanCurrentFileCommand = vscode.commands.registerCommand('cloakd.scanCurrentFile', async () => {
+        const hasRulesheet = await ensureActiveRulesheet('scanCurrentFile');
+        if (!hasRulesheet) {
+            return;
+        }
+
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showWarningMessage('Open a file in the editor before running a current-file secret scan.');
+            return;
+        }
+
+        const document = editor.document;
+        const displayName = path.basename(document.fileName || `untitled.${document.languageId || 'txt'}`);
+
+        await scanSecretsWithProgress(displayName, (scanner, onProgress, cancellationToken) => {
+            return scanner.scanText(document.getText(), document.fileName || displayName, {
+                onProgress,
+                cancelled: cancellationToken,
+            });
+        });
+    });
+
+    const legacyScanCurrentFileCommand = vscode.commands.registerCommand('prompt-hider.scanCurrentFile', async () => {
+        await vscode.commands.executeCommand('cloakd.scanCurrentFile');
+    });
+
 
     const toolDisposable = vscode.lm.registerTool('cloakd_execute_command', commandExecutor);
     const scpToolDisposable = vscode.lm.registerTool('cloakd_scp_transfer', scpTransferTool);
@@ -718,7 +830,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
     });
 
+    const scanSecretsCommand = vscode.commands.registerCommand('cloakd.scanSecrets', async () => {
+        const hasRulesheet = await ensureActiveRulesheet('scanSecrets');
+        if (!hasRulesheet) {
+            return;
+        }
+
+        const fileUris = await vscode.window.showOpenDialog({
+            canSelectMany: false,
+            canSelectFolders: false,
+            canSelectFiles: true,
+            openLabel: 'Scan for Secrets',
+            filters: {
+                'All Supported': ['tf', 'tfvars', 'py', 'js', 'ts', 'jsx', 'tsx', 'go', 'rb', 'java', 'cs', 'yml', 'yaml', 'json', 'env', 'sh', 'toml', 'ini', 'cfg', 'conf', 'properties', 'xml'],
+                'All Files': ['*'],
+            },
+        });
+
+        if (!fileUris || fileUris.length === 0) {
+            return;
+        }
+
+        const filePath = fileUris[0].fsPath;
+        await scanSecretsWithProgress(path.basename(filePath), (scanner, onProgress, cancellationToken) => {
+            return scanner.scanFile(filePath, {
+                onProgress,
+                cancelled: cancellationToken,
+            });
+        });
+    });
+
     context.subscriptions.push(
+        scanCurrentFileCommand,
+        legacyScanCurrentFileCommand,
         openWebUI,
         showMappingsCommand,
         clearMappingsCommand,
@@ -726,7 +870,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         activateCommand,
         anonymizeSelectionCommand,
         openRuleEditorCommand,
-        scanIacFileCommand
+        scanIacFileCommand,
+        scanSecretsCommand
     );
 
 
