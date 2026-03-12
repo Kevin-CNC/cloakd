@@ -6,7 +6,13 @@ suite('Cloakd Extension Smoke Tests', () => {
         const extension = vscode.extensions.getExtension('kevincncaplescu.cloakd');
         assert.ok(extension, 'Expected Cloakd extension to be installed in test host.');
 
-        const expectedCommands = ['cloakd.openUI', 'cloakd.switchRulesheet', 'cloakd.quickAddRule'];
+        const expectedCommands = [
+            'cloakd.openUI',
+            'cloakd.switchRulesheet',
+            'cloakd.quickAddRule',
+            'cloakd.scanCurrentFile',
+            'cloakd.scanSecrets',
+        ];
         const contributed = (extension!.packageJSON?.contributes?.commands ?? []) as Array<{ command: string }>;
 
         for (const command of expectedCommands) {

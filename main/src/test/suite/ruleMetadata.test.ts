@@ -1,5 +1,7 @@
 import * as assert from 'assert';
 import { AnonymizationEngine } from '../../anonymizer/AnonymizationEngine';
+import { RegexPatternMatcher } from '../../anonymizer/patternMatcher';
+import { validateRules } from '../../anonymizer/RuleValidator';
 import { normalizeImportedRules, normalizeRuleForStorage } from '../../utils/RuleMetadata';
 
 suite('Rule Metadata Utilities', () => {
@@ -74,5 +76,59 @@ suite('AnonymizationEngine Cache', () => {
         fingerprint = 'fp2';
         await engine.anonymize('connect server-3');
         assert.strictEqual(rulesCalls, 2, 'rules should be fetched again after fingerprint change');
+    });
+});
+
+suite('Wildcard Pattern Support', () => {
+    test('matches wildcard IPv4-style patterns', () => {
+        const matcher = new RegexPatternMatcher();
+        matcher.build([
+            { pattern: '10.123.*.*', replacement: 'IP_TOKEN' },
+        ]);
+
+        const matches = matcher.findMatches('connect 10.123.1.10 then 10.124.1.10');
+
+        assert.strictEqual(matches.length, 1);
+        assert.strictEqual(matches[0].match, '10.123.1.10');
+    });
+
+    test('matches wildcard email domain patterns', () => {
+        const matcher = new RegexPatternMatcher();
+        matcher.build([
+            { pattern: '*@ambrosio.com', replacement: 'EMAIL_TOKEN' },
+        ]);
+
+        const matches = matcher.findMatches('a@ambrosio.com b@other.com');
+
+        assert.strictEqual(matches.length, 1);
+        assert.strictEqual(matches[0].match, 'a@ambrosio.com');
+    });
+
+    test('keeps regex patterns working with wildcard feature enabled', () => {
+        const matcher = new RegexPatternMatcher();
+        matcher.build([
+            { pattern: '\\bserver-[0-9]+\\b', replacement: 'HOST_TOKEN' },
+        ]);
+
+        const matches = matcher.findMatches('server-1 server-A');
+
+        assert.strictEqual(matches.length, 1);
+        assert.strictEqual(matches[0].match, 'server-1');
+    });
+
+    test('validator accepts wildcard patterns', () => {
+        const validation = validateRules([
+            {
+                id: 'wildcard-ip',
+                type: 'custom',
+                pattern: '10.123.*.*',
+                replacement: 'IP_TOKEN',
+                enabled: true,
+                description: '',
+            },
+        ]);
+
+        assert.strictEqual(validation.valid, true);
+        assert.strictEqual(validation.errors.length, 0);
     });
 });

@@ -160,8 +160,18 @@ export class RuleEditorProvider implements vscode.WebviewViewProvider {
                     break;
                 }
 
+                case 'scanCurrentFile': {
+                    vscode.commands.executeCommand('cloakd.scanCurrentFile');
+                    break;
+                }
+
                 case 'scanIacFile': {
                     vscode.commands.executeCommand('cloakd.scanIacFile');
+                    break;
+                }
+
+                case 'scanSecrets': {
+                    vscode.commands.executeCommand('cloakd.scanSecrets');
                     break;
                 }
 

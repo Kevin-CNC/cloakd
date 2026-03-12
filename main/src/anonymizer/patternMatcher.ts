@@ -12,6 +12,62 @@ interface CompiledPattern {
     regex: RegExp;
 }
 
+function hasUnescapedWildcard(pattern: string): boolean {
+    for (let i = 0; i < pattern.length; i++) {
+        const char = pattern[i];
+        if ((char === '*' || char === '?') && pattern[i - 1] !== '\\') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function looksLikeRegexPattern(pattern: string): boolean {
+    // Keep regex mode for advanced constructs and escaped tokens (\d, \b, etc.).
+    return /\\[dDsSwWbBtrnvf]|[\[\](){}+|^$]/.test(pattern);
+}
+
+function wildcardToRegexSource(pattern: string): string {
+    let source = '';
+
+    for (let i = 0; i < pattern.length; i++) {
+        const char = pattern[i];
+        const escaped = i > 0 && pattern[i - 1] === '\\';
+
+        if (!escaped && char === '*') {
+            source += '[^\\s]*';;
+            continue;
+        }
+
+        if (!escaped && char === '?') {
+            source += '[^\\s]';
+            continue;
+        }
+
+        if ('\\.^$+{}()|[]'.includes(char)) {
+            source += `\\${char}`;
+        } else {
+            source += char;
+        }
+    }
+
+    return source;
+}
+
+export function toRegexSource(pattern: string): string {
+    const trimmedPattern = pattern.trim();
+
+    if (hasUnescapedWildcard(trimmedPattern) && !looksLikeRegexPattern(trimmedPattern)) {
+        return wildcardToRegexSource(trimmedPattern);
+    }
+
+    return trimmedPattern;
+}
+
+export function compilePattern(pattern: string): RegExp {
+    return new RegExp(toRegexSource(pattern), 'g');
+}
+
 export class RegexPatternMatcher {
     private patterns: CompiledPattern[] = [];
 
@@ -27,7 +83,7 @@ export class RegexPatternMatcher {
                 nextPatterns.push({
                     pattern: pattern.pattern,
                     replacement: pattern.replacement,
-                    regex: new RegExp(pattern.pattern, 'g'),
+                    regex: compilePattern(pattern.pattern),
                 });
             } catch {
                 console.warn(`[PatternMatcher] Invalid regex, skipping: ${pattern.pattern}`);

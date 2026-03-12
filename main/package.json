@@ -43,6 +43,9 @@
     "onCommand:cloakd.scanIacFile",
     "onCommand:cloakd.switchRulesheet",
     "onCommand:cloakd.quickAddRule",
+    "onCommand:cloakd.scanCurrentFile",
+    "onCommand:cloakd.scanSecrets",
+    "onCommand:prompt-hider.scanCurrentFile",
     "onView:cloakd.mappingsView",
     "onView:cloakd.rulesView",
     "onChatParticipant:cloakd"
@@ -146,6 +149,12 @@
         "category": "Cloakd"
       },
       {
+        "command": "cloakd.scanCurrentFile",
+        "title": "Scan Current File for Secrets",
+        "icon": "$(file-code)",
+        "category": "Cloakd"
+      },
+      {
         "command": "cloakd.openUI",
         "title": "Open Main UI",
         "icon": "$(window)",
@@ -185,12 +194,26 @@
       {
         "command": "cloakd.quickAddRule",
         "title": "Cloakd: Quick Add Rule"
+      },
+      {
+        "command": "cloakd.scanSecrets",
+        "title": "Scan File for Secrets",
+        "icon": "$(shield)",
+        "category": "Cloakd"
       }
     ],
     "keybindings": [
       {
         "key": "ctrl+shift+a",
         "command": "cloakd.quickAddRule"
+      },
+      {
+        "key": "ctrl+alt+s",
+        "command": "cloakd.scanCurrentFile"
+      },
+      {
+        "key": "ctrl+alt+shift+s",
+        "command": "cloakd.scanSecrets"
       }
     ],
     "configuration": {

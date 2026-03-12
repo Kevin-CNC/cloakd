@@ -14,15 +14,33 @@ export class mainUIProvider {
     private static currentPanel: vscode.WebviewPanel | undefined;
     private static onConfigChanged?: () => void;
     private static activeConfigManager?: ConfigManager;
+    private static isWebviewReady = false;
+    private static pendingMessages: unknown[] = [];
+
+    private static flushPendingMessages(): void {
+        if (!mainUIProvider.currentPanel || !mainUIProvider.isWebviewReady || mainUIProvider.pendingMessages.length === 0) {
+            return;
+        }
+
+        const messages = [...mainUIProvider.pendingMessages];
+        mainUIProvider.pendingMessages = [];
+
+        for (const message of messages) {
+            mainUIProvider.currentPanel.webview.postMessage(message);
+        }
+    }
 
     /**
      * Post an arbitrary message to the webview, if it exists.
      * Used by commands (e.g. IaC scan) to push data into the Vue app.
      */
     public static postMessage(message: unknown): void {
-        if (mainUIProvider.currentPanel) {
+        if (mainUIProvider.currentPanel && mainUIProvider.isWebviewReady) {
             mainUIProvider.currentPanel.webview.postMessage(message);
+            return;
         }
+
+        mainUIProvider.pendingMessages.push(message);
     }
 
     static refreshRules(){
@@ -71,17 +89,21 @@ export class mainUIProvider {
         );
 
         mainUIProvider.currentPanel = panel;
+        mainUIProvider.isWebviewReady = false;
 
         panel.onDidDispose(() => {
             mainUIProvider.currentPanel = undefined;
+            mainUIProvider.isWebviewReady = false;
         });
 
-        // ---- Handle messages from the webview ----
+        // ---- Handle messages from the webview ---- ////
         panel.webview.onDidReceiveMessage(async (message) => {
             switch (message.command) {
                 case 'ready': {
                     if (!mainUIProvider.activeConfigManager) { break; }
                     await mainUIProvider.postInit(panel.webview, mainUIProvider.activeConfigManager);
+                    mainUIProvider.isWebviewReady = true;
+                    mainUIProvider.flushPendingMessages();
                     break;
                 }
 
@@ -211,9 +233,19 @@ export class mainUIProvider {
                     break;
                 }
 
+                case 'scanCurrentFile': {
+                    vscode.commands.executeCommand('cloakd.scanCurrentFile');
+                    break;
+                }
+
                 case 'scanIacFile': {
                     // Delegate to the registered command which handles the file picker + scanning
                     vscode.commands.executeCommand('cloakd.scanIacFile');
+                    break;
+                }
+
+                case 'scanSecrets': {
+                    vscode.commands.executeCommand('cloakd.scanSecrets');
                     break;
                 }
             }
@@ -227,6 +259,7 @@ export class mainUIProvider {
                 vscode.window.showErrorMessage(
                     `Webview assets not found at ${distPath}. Run 'npm run webview:build' first.`
                 );
+                panel.dispose();
                 return;
             }
 
@@ -252,6 +285,7 @@ export class mainUIProvider {
             panel.webview.html = html;
         } catch (error) {
             vscode.window.showErrorMessage(`Failed to load webview: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            panel.dispose();
         }
     }
 
