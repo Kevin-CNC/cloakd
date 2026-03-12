@@ -419,14 +419,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         source: string;
     }>): void => {
         mainUIProvider.show(context, configManager, updateStatusBar);
-
-        setTimeout(() => {
-            mainUIProvider.postMessage({
-                command: 'scannedRules',
-                rules: scannedRules,
-                fileName,
-            });
-        }, 500);
+        mainUIProvider.postMessage({
+            command: 'scannedRules',
+            rules: scannedRules,
+            fileName,
+        });
     };
 
     const scanSecretsWithProgress = async (
@@ -807,18 +804,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
 
             mainUIProvider.show(context, configManager, updateStatusBar);
-
-            setTimeout(() => {
-                mainUIProvider.postMessage({
-                    command: 'scannedRules',
-                    rules: scannedRules.map(r => ({
-                        id: r.id,
-                        pattern: r.pattern,
-                        replacement: r.replacement,
-                    })),
-                    fileName: path.basename(filePath),
-                });
-            }, 500);
+            mainUIProvider.postMessage({
+                command: 'scannedRules',
+                rules: scannedRules.map(r => ({
+                    id: r.id,
+                    pattern: r.pattern,
+                    replacement: r.replacement,
+                })),
+                fileName: path.basename(filePath),
+            });
 
             vscode.window.showInformationMessage(
                 `Found ${scannedRules.length} potential pattern(s) in ${path.basename(filePath)}. Review and save in the UI.`
@@ -892,15 +886,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
 
             const patternToObfuscate = await vscode.window.showInputBox({
-                    prompt: "Is this the patter you want to obfuscate? Edit if needed, or leave as is.",
+                    prompt: 'Is this the pattern you want to obfuscate? Edit if needed, or leave as is.',
                     value: selectedText, // Pre-fill with highlighted text
                     ignoreFocusOut: true,
                 });
 
-            if (!patternToObfuscate) { 
-                vscode.window.showInformationMessage('Select text first to create a rule from it.');
+            if (patternToObfuscate === undefined) {
+                vscode.window.showInformationMessage('Quick Add cancelled.');
                 return;
-            };
+            }
+
+            const normalizedPattern = patternToObfuscate.trim();
+            if (!normalizedPattern) {
+                vscode.window.showWarningMessage('You must provide a pattern to obfuscate.');
+                return;
+            }
 
             const givenReplacement = await vscode.window.showInputBox({
                 prompt: 'Enter replacement word/phrase.',
@@ -909,10 +909,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 ignoreFocusOut: true
             })
 
-            if (!givenReplacement) { 
-                vscode.window.showInformationMessage('You must provide a replacement.');
+            if (givenReplacement === undefined) {
+                vscode.window.showInformationMessage('Quick Add cancelled.');
                 return;
-            };
+            }
+
+            const normalizedReplacement = givenReplacement.trim();
+            if (!normalizedReplacement) {
+                vscode.window.showWarningMessage('You must provide a replacement.');
+                return;
+            }
 
 
             // Actually add the rule to the path
@@ -928,10 +934,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const newlyCreatedRule:AnonymizationRule = {
                 id: `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                 type: "custom",
-                pattern:patternToObfuscate,
-                replacement: givenReplacement,
+                pattern: normalizedPattern,
+                replacement: normalizedReplacement,
                 enabled: true,
-                description: `${patternToObfuscate} → ${givenReplacement} (added via quick-add)`,
+                description: `${normalizedPattern} → ${normalizedReplacement} (added via quick-add)`,
             }
 
             if (currentConfigs) {
@@ -951,9 +957,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 await configManager.saveProjectRules(allRules);
                 if (mainUIProvider.isPanelOpen()) {
                     mainUIProvider.refreshCurrentPanel();
-                    vscode.window.showInformationMessage(`Rule added and saved: ${patternToObfuscate} → ${givenReplacement}. Main panel refreshed.`);
+                    vscode.window.showInformationMessage(`Rule added and saved: ${normalizedPattern} → ${normalizedReplacement}. Main panel refreshed.`);
                 } else {
-                    vscode.window.showInformationMessage(`Rule added and saved: ${patternToObfuscate} → ${givenReplacement}. Open the UI to view all rules.`);
+                    vscode.window.showInformationMessage(`Rule added and saved: ${normalizedPattern} → ${normalizedReplacement}. Open the UI to view all rules.`);
                 }
             };
         })
