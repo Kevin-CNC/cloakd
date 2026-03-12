@@ -1,4 +1,5 @@
 import { AnonymizationRule } from './PatternLibrary';
+import { compilePattern } from './patternMatcher';
 
 export interface RuleValidationResult {
     valid: boolean;
@@ -25,7 +26,7 @@ const OVERLAP_PROBES = [
 ];
 
 function compileRegex(pattern: string): RegExp {
-    return new RegExp(pattern, 'g');
+    return compilePattern(pattern);
 }
 
 function isRuleEmpty(rule: Pick<AnonymizationRule, 'pattern' | 'replacement'>): boolean {
