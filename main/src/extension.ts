@@ -13,6 +13,7 @@ import { IacScanner } from './scanner/IacScanner';
 import { SecretScanner } from './scanner/SecretScanner';
 import { CloakdLogger } from './utils/CloakdLogger';
 import { validateRules } from './anonymizer/RuleValidator';
+import { createAnonymizedModel, type Anonymizer } from './anonymizedModel';
 import * as fs from 'fs';
 import { AnonymizationRule } from './anonymizer/PatternLibrary';
 
@@ -22,6 +23,26 @@ let hasWarnedAboutAllToolScope = false;
 interface RulesheetSelection {
     workspaceFolder: vscode.WorkspaceFolder;
     fileUri: vscode.Uri;
+}
+
+function escapeRegex(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function deanonymizeWithTokenManager(text: string, tokenManager: TokenManager): string {
+    const reverseMappings = tokenManager.getReverseMappings();
+    const sortedTokens = [...reverseMappings.keys()].sort((a, b) => b.length - a.length);
+
+    let result = text;
+    for (const token of sortedTokens) {
+        const originalValue = reverseMappings.get(token);
+        if (originalValue === undefined) {
+            continue;
+        }
+        result = result.replace(new RegExp(escapeRegex(token), 'g'), originalValue);
+    }
+
+    return result;
 }
 
 function sanitizeRulesheetName(input: string | undefined): string {
@@ -608,6 +629,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         const toolDefs = getToolDefinitions(activeWorkspaceFolder);
         const maxToolRounds = getMaxToolRounds(activeWorkspaceFolder);
+        const wrappedModelAnonymizer: Anonymizer = {
+            anonymize: async (text: string): Promise<string> => {
+                const anonymized = await anonymizationEngine.anonymize(text);
+                return anonymized.anonymized;
+            },
+            deanonymize: (text: string): string => deanonymizeWithTokenManager(text, tokenManager),
+        };
+        const wrappedModel = createAnonymizedModel(request.model, wrappedModelAnonymizer);
 
         try {
             let continueLoop = true;
@@ -622,7 +651,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                     break;
                 }
 
-                const modelResponse = await request.model.sendRequest(
+                const modelResponse = await wrappedModel.sendRequest(
                     messages,
                     { tools: toolDefs },
                     token
