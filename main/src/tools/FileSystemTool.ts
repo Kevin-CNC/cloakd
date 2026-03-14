@@ -106,7 +106,7 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
         const anonymized = await this.anonymizationEngine.anonymize(content);
 
         CloakdLogger.info('Filesystem read completed.', {
-            targetPath: targetUri.fsPath,
+            targetPath: this.reAnonymize(targetUri.fsPath),
             bytes: bytes.byteLength,
         });
 
@@ -128,12 +128,12 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
         }
 
         CloakdLogger.info('Filesystem write completed.', {
-            targetPath: targetUri.fsPath,
+            targetPath: this.reAnonymize(targetUri.fsPath),
             bytes: data.byteLength,
             mode: usedWorkspaceEdit ? 'workspaceEdit' : 'filesystem',
         });
 
-        return this.textResult(`File written: ${targetUri.fsPath} (${data.byteLength} bytes)`);
+        return this.textResult(this.reAnonymize(`File written: ${targetUri.fsPath} (${data.byteLength} bytes)`));
     }
 
     private async patchFile(
@@ -177,25 +177,25 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
         }
 
         CloakdLogger.info('Filesystem patch completed.', {
-            targetPath: targetUri.fsPath,
+            targetPath: this.reAnonymize(targetUri.fsPath),
             occurrenceCount,
             replaceAll,
             mode: usedWorkspaceEdit ? 'workspaceEdit' : 'filesystem',
         });
 
         const appliedCount = replaceAll ? occurrenceCount : 1;
-        return this.textResult(`Patched ${appliedCount} occurrence(s) in ${targetUri.fsPath}`);
+        return this.textResult(this.reAnonymize(`Patched ${appliedCount} occurrence(s) in ${targetUri.fsPath}`));
     }
 
     private async deletePath(targetUri: vscode.Uri, recursive: boolean): Promise<vscode.LanguageModelToolResult> {
         await vscode.workspace.fs.delete(targetUri, { recursive, useTrash: false });
 
         CloakdLogger.info('Filesystem delete completed.', {
-            targetPath: targetUri.fsPath,
+            targetPath: this.reAnonymize(targetUri.fsPath),
             recursive,
         });
 
-        return this.textResult(`Deleted: ${targetUri.fsPath}`);
+        return this.textResult(this.reAnonymize(`Deleted: ${targetUri.fsPath}`));
     }
 
     private async listDirectory(targetUri: vscode.Uri): Promise<vscode.LanguageModelToolResult> {
@@ -213,11 +213,11 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
             .join('\n');
 
         CloakdLogger.info('Filesystem list completed.', {
-            targetPath: targetUri.fsPath,
+            targetPath: this.reAnonymize(targetUri.fsPath),
             count: entries.length,
         });
 
-        return this.textResult(formatted || '(empty directory)');
+        return this.textResult(this.reAnonymize(formatted || '(empty directory)'));
     }
 
     private resolveWorkspacePath(rawPath: string): string {
@@ -362,6 +362,26 @@ export class FileSystemTool implements vscode.LanguageModelTool<FileSystemInput>
             const original = reverse.get(token)!;
             result = result.replace(new RegExp(this.escapeRegex(token), 'g'), original);
         }
+        return result;
+    }
+
+    private reAnonymize(text: string): string {
+        if (!text) {
+            return text;
+        }
+
+        const forward = this.tokenManager.getAllMappings();
+        const sortedOriginals = [...forward.keys()].sort((a, b) => b.length - a.length);
+
+        let result = text;
+        for (const original of sortedOriginals) {
+            const token = forward.get(original);
+            if (!token) {
+                continue;
+            }
+            result = result.replace(new RegExp(this.escapeRegex(original), 'g'), token);
+        }
+
         return result;
     }
 
