@@ -9,6 +9,16 @@ import {
     normalizeRuleForStorage,
     toWebviewRule
 } from '../utils/RuleMetadata';
+import { type ToolWrappingPolicyConfig } from '../tools/ToolPolicy';
+import { CloakdLogger } from '../utils/CloakdLogger';
+
+type DynamicWrappingMode = 'strict' | 'balanced' | 'trustedLocal';
+
+interface DynamicToolWrappingMessage {
+    enabled: boolean;
+    mode: DynamicWrappingMode;
+    policies: unknown;
+}
 
 export class mainUIProvider {
     private static currentPanel: vscode.WebviewPanel | undefined;
@@ -248,6 +258,61 @@ export class mainUIProvider {
                     vscode.commands.executeCommand('cloakd.scanSecrets');
                     break;
                 }
+
+                case 'saveToolWrappingConfig': {
+                    const activeConfig = mainUIProvider.activeConfigManager;
+                    if (!activeConfig) { break; }
+
+                    try {
+                        const payload = message as DynamicToolWrappingMessage;
+                        const scopeUri = vscode.workspace.getWorkspaceFolder(
+                            vscode.Uri.file(activeConfig.getConfigFilePath())
+                        )?.uri;
+
+                        const mode = payload.mode === 'balanced' || payload.mode === 'trustedLocal' || payload.mode === 'strict'
+                            ? payload.mode
+                            : 'strict';
+                        const policies = payload.policies && typeof payload.policies === 'object' && !Array.isArray(payload.policies)
+                            ? payload.policies
+                            : {};
+
+                        await activeConfig.saveDynamicToolWrappingEnabled(
+                            Boolean(payload.enabled),
+                            scopeUri,
+                            vscode.ConfigurationTarget.Workspace
+                        );
+                        await activeConfig.saveDynamicToolWrappingMode(
+                            mode,
+                            scopeUri,
+                            vscode.ConfigurationTarget.Workspace
+                        );
+                        await activeConfig.saveDynamicToolWrappingPolicies(
+                            policies as ToolWrappingPolicyConfig,
+                            scopeUri,
+                            vscode.ConfigurationTarget.Workspace
+                        );
+
+                        panel.webview.postMessage({
+                            command: 'toolWrappingSaved',
+                            dynamicToolWrapping: {
+                                enabled: Boolean(payload.enabled),
+                                mode,
+                                policies,
+                            },
+                        });
+                    } catch (error) {
+                        const messageText = error instanceof Error ? error.message : String(error);
+                        CloakdLogger.error('Failed to save wrapped tool trust policy settings.', {
+                            reason: messageText,
+                        });
+
+                        panel.webview.postMessage({
+                            command: 'toolWrappingSaveFailed',
+                            message: messageText,
+                        });
+                    }
+                    break;
+                }
             }
         });
 
@@ -294,6 +359,7 @@ export class mainUIProvider {
     private static async postInit(webview: vscode.Webview, configManager: ConfigManager): Promise<void> {
         const config = await configManager.loadFullConfig();
         const name = configManager.getRulesheetName();
+        const scopeUri = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(configManager.getConfigFilePath()))?.uri;
         webview.postMessage({
             command: 'init',
             viewMode: 'main',
@@ -302,6 +368,11 @@ export class mainUIProvider {
             rulesheetPath: configManager.getConfigFilePath(),
             rules: (config?.rules ?? []).map(r => toWebviewRule(r)),
             enabled: config?.enabled ?? false,
+            dynamicToolWrapping: {
+                enabled: configManager.getDynamicToolWrappingEnabled(scopeUri),
+                mode: configManager.getDynamicToolWrappingMode(scopeUri),
+                policies: configManager.loadDynamicToolWrappingPolicies(scopeUri),
+            },
         });
     }
 
