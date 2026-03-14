@@ -14,26 +14,77 @@
       Anonymization is applied only when you chat with <strong>@Cloakd</strong>.
     </div>
 
-    <!-- Rule Editor -->
-    <RuleEditor
-      :rules="rules"
-      :view-mode="viewMode"
-      :pending-scanned-rules="pendingScannedRules"
-      :pending-imported-rules="pendingImportedRules"
-      :validation-feedback="validationFeedback"
-      :save-ack="saveAck"
-      @save-rules="handleSaveRules"
-      @save-single-rule="handleSaveSingleRule"
-      @delete-rule="handleDeleteRule"
-      @scan-current-file="handleScanCurrentFile"
-      @scan-iac-file="handleScanIacFile"
-      @scan-secrets="handleScanSecrets"
-      @open-main-ui="handleOpenMainUi"
-      @scanned-rules-consumed="pendingScannedRules = []"
-      @import-rules="handleImportRules"
-      @export-rules="handleExportRules"
-      @imported-rules-consumed="pendingImportedRules = []"
-    />
+    <section class="submenu-shell" aria-label="Cloakd controls">
+      <details class="submenu-card" open>
+        <summary class="submenu-summary">
+          <span class="codicon codicon-list-filter" aria-hidden="true"></span>
+          Rule Addition
+        </summary>
+        <div class="submenu-content">
+          <RuleEditor
+            :rules="rules"
+            :view-mode="viewMode"
+            :pending-scanned-rules="pendingScannedRules"
+            :pending-imported-rules="pendingImportedRules"
+            :validation-feedback="validationFeedback"
+            :save-ack="saveAck"
+            @save-rules="handleSaveRules"
+            @save-single-rule="handleSaveSingleRule"
+            @delete-rule="handleDeleteRule"
+            @scan-current-file="handleScanCurrentFile"
+            @scan-iac-file="handleScanIacFile"
+            @scan-secrets="handleScanSecrets"
+            @open-main-ui="handleOpenMainUi"
+            @scanned-rules-consumed="pendingScannedRules = []"
+            @import-rules="handleImportRules"
+            @export-rules="handleExportRules"
+            @imported-rules-consumed="pendingImportedRules = []"
+          />
+        </div>
+      </details>
+
+      <details class="submenu-card">
+        <summary class="submenu-summary">
+          <span class="codicon codicon-shield" aria-hidden="true"></span>
+          Wrapped Tool Trust Policy
+          <span class="submenu-status" :class="`state-${wrappingSaveState}`">{{ wrappingStatusLabel }}</span>
+        </summary>
+        <div class="submenu-content">
+          <section class="tool-wrapping-panel" aria-label="Wrapped tool trust policy">
+            <div class="tool-wrapping-controls">
+              <label class="toggle-label">
+                <input
+                  type="checkbox"
+                  :checked="wrappingEnabled"
+                  @change="wrappingEnabled = ($event.target as HTMLInputElement).checked"
+                />
+                Enable dynamic wrapped tools
+              </label>
+              <label class="mode-label">
+                Mode
+                <select v-model="wrappingMode" class="mode-select" aria-label="Wrapped tool mode">
+                  <option value="strict">Strict</option>
+                  <option value="balanced">Balanced</option>
+                  <option value="trustedLocal">Trusted Local</option>
+                </select>
+              </label>
+            </div>
+            <label class="policies-label" for="tool-policies-json">Policy Overrides JSON</label>
+            <textarea
+              id="tool-policies-json"
+              v-model="wrappingPoliciesJson"
+              class="policies-editor"
+              spellcheck="false"
+              aria-label="Wrapped tool policy JSON"
+            ></textarea>
+            <p v-if="wrappingError" class="wrapping-error">{{ wrappingError }}</p>
+            <div class="tool-wrapping-actions">
+              <vscode-button appearance="secondary" @click="saveToolWrappingConfig">Save Wrapped Tool Settings</vscode-button>
+            </div>
+          </section>
+        </div>
+      </details>
+    </section>
 
     <!-- Loading overlay: shown until 'init' arrives from the extension host -->
     <Transition name="loading-fade">
@@ -46,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import RuleEditor from './components/RuleEditor.vue';
 import {
   provideVSCodeDesignSystem,
@@ -65,6 +116,7 @@ const rulesheetName = ref('Loading...');
 const workspaceName = ref('Loading...');
 const isLoading = ref(true);
 const viewMode = ref<'main' | 'sidebar'>('main');
+type WrappingMode = 'strict' | 'balanced' | 'trustedLocal';
 
 interface SimpleRule {
   id: string;
@@ -90,6 +142,18 @@ interface SaveAck {
 const rules = ref<SimpleRule[]>([]);
 const validationFeedback = ref<ValidationFeedback | null>(null);
 const saveAck = ref<SaveAck | null>(null);
+const wrappingEnabled = ref(false);
+const wrappingMode = ref<WrappingMode>('strict');
+const wrappingPoliciesJson = ref('{}');
+const wrappingSaveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle');
+const wrappingError = ref('');
+
+const wrappingStatusLabel = computed(() => {
+  if (wrappingSaveState.value === 'saving') return 'Saving...';
+  if (wrappingSaveState.value === 'saved') return 'Saved';
+  if (wrappingSaveState.value === 'error') return 'Error';
+  return 'Idle';
+});
 
 function handleSaveRules(newRules: SimpleRule[]) {
   rules.value = newRules;
@@ -135,6 +199,28 @@ function handleExportRules(rulesToExport: SimpleRule[]) {
   vscode.postMessage({ command: 'exportRules', rules: rulesToExport });
 }
 
+function saveToolWrappingConfig() {
+  wrappingError.value = '';
+  wrappingSaveState.value = 'saving';
+
+  try {
+    const parsedPolicies = JSON.parse(wrappingPoliciesJson.value || '{}');
+    if (!parsedPolicies || typeof parsedPolicies !== 'object' || Array.isArray(parsedPolicies)) {
+      throw new Error('Policy overrides must be a JSON object.');
+    }
+
+    vscode.postMessage({
+      command: 'saveToolWrappingConfig',
+      enabled: wrappingEnabled.value,
+      mode: wrappingMode.value,
+      policies: parsedPolicies,
+    });
+  } catch (error) {
+    wrappingSaveState.value = 'error';
+    wrappingError.value = error instanceof Error ? error.message : 'Invalid JSON payload.';
+  }
+}
+
 /** Ref passed down to RuleEditor when scanned rules arrive */
 const pendingScannedRules = ref<SimpleRule[]>([]);
 const pendingImportedRules = ref<SimpleRule[]>([]);
@@ -147,6 +233,13 @@ window.addEventListener('message', (event) => {
       rulesheetName.value = msg.rulesheetName ?? 'Unknown';
       viewMode.value = msg.viewMode === 'sidebar' ? 'sidebar' : 'main';
       rules.value = msg.rules ?? [];
+      wrappingEnabled.value = Boolean(msg.dynamicToolWrapping?.enabled);
+      wrappingMode.value = msg.dynamicToolWrapping?.mode === 'balanced' || msg.dynamicToolWrapping?.mode === 'trustedLocal'
+        ? msg.dynamicToolWrapping.mode
+        : 'strict';
+      wrappingPoliciesJson.value = JSON.stringify(msg.dynamicToolWrapping?.policies ?? {}, null, 2);
+      wrappingSaveState.value = 'idle';
+      wrappingError.value = '';
       isLoading.value = false;
       break;
     case 'scannedRules':
@@ -168,6 +261,19 @@ window.addEventListener('message', (event) => {
         ruleIds: Array.isArray(msg.ruleIds) ? msg.ruleIds : [],
         timestamp: Date.now(),
       };
+      break;
+    case 'toolWrappingSaved':
+      wrappingEnabled.value = Boolean(msg.dynamicToolWrapping?.enabled);
+      wrappingMode.value = msg.dynamicToolWrapping?.mode === 'balanced' || msg.dynamicToolWrapping?.mode === 'trustedLocal'
+        ? msg.dynamicToolWrapping.mode
+        : 'strict';
+      wrappingPoliciesJson.value = JSON.stringify(msg.dynamicToolWrapping?.policies ?? {}, null, 2);
+      wrappingSaveState.value = 'saved';
+      wrappingError.value = '';
+      break;
+    case 'toolWrappingSaveFailed':
+      wrappingSaveState.value = 'error';
+      wrappingError.value = String(msg.message ?? 'Failed to save wrapped tool settings.');
       break;
     case 'errorNotice':
       validationFeedback.value = {
@@ -249,6 +355,132 @@ onMounted(() => {
   color: var(--vscode-editorInfo-foreground, var(--vscode-editor-foreground));
   font-size: 12px;
   line-height: 1.4;
+}
+
+.submenu-shell {
+  margin: 0 20px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.submenu-card {
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 8px;
+  background: var(--vscode-editorWidget-background);
+  overflow: hidden;
+}
+
+.submenu-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--vscode-editor-foreground);
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.submenu-summary::-webkit-details-marker {
+  display: none;
+}
+
+.submenu-status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+.submenu-status.state-saved {
+  background: var(--vscode-testing-iconPassed, var(--vscode-badge-background));
+}
+
+.submenu-status.state-error {
+  background: var(--vscode-testing-iconFailed, var(--vscode-badge-background));
+}
+
+.submenu-content {
+  padding: 10px;
+}
+
+.tool-wrapping-panel {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tool-wrapping-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.toggle-label {
+  font-size: 12px;
+  color: var(--vscode-editor-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode-label {
+  font-size: 12px;
+  color: var(--vscode-editor-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mode-select {
+  border: 1px solid var(--vscode-dropdown-border);
+  background: var(--vscode-dropdown-background);
+  color: var(--vscode-dropdown-foreground);
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+
+.policies-label {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.policies-editor {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  border-radius: 6px;
+  border: 1px solid var(--vscode-input-border);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  padding: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+  box-sizing: border-box;
+  font-family: var(--vscode-editor-font-family);
+}
+
+.tool-wrapping-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.wrapping-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--vscode-errorForeground);
 }
 
 /* ─── Loading overlay ─────────────────────────────────────── */
