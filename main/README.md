@@ -163,6 +163,29 @@ Use this only when you need non-native or third-party tools in the loop.
 
 ### Optional policy override example
 
+`Policy Overrides JSON` is the advanced control surface for wrapped tools.
+
+What it does:
+
+- Defines a default trust policy for all wrapped tools via `defaultPolicy`.
+- Applies targeted exceptions for specific tools via `perTool`.
+- Controls de-anonymization behavior (`tokenOnly`, `selectiveDeanonymize`, `trusted`).
+- Restricts selective de-anonymization to explicit input paths.
+- Enforces input/output size limits to reduce risk and noisy output.
+
+What it achieves for developers:
+
+- Lets custom tools work without weakening privacy for every tool.
+- Supports principle-of-least-privilege for tool input exposure.
+- Makes trust behavior explicit, reviewable, and team-shareable in workspace settings.
+
+How to use it safely:
+
+1. Keep `defaultPolicy` conservative (`tokenOnly`, `allowExternal: false`).
+2. Add per-tool overrides only for tools that fail under strict policy.
+3. Prefer `selectiveDeanonymize` with narrow `allowedInputPaths`.
+4. Use `trusted` only for fully trusted local workflows.
+
 ```json
 {
   "defaultPolicy": {
@@ -180,6 +203,17 @@ Use this only when you need non-native or third-party tools in the loop.
   }
 }
 ```
+
+Field reference:
+
+- `mode`:
+  - `tokenOnly`: never de-anonymize tool input fields.
+  - `selectiveDeanonymize`: only de-anonymize fields listed in `allowedInputPaths`.
+  - `trusted`: de-anonymize all string fields in tool input.
+- `allowedInputPaths`: dot-style field paths for selective mode (example: `credentials.password`).
+- `allowExternal`: permits non-Cloakd external tool execution where policy checks apply.
+- `maxInputSize`: maximum serialized tool input size allowed.
+- `maxOutputSize`: maximum returned output size before truncation/sanitization limits apply.
 
 ---
 
