@@ -190,10 +190,6 @@
         <span slot="start" class="codicon codicon-cloud-download"></span>
         Export Rules
       </vscode-button>
-      <vscode-button appearance="secondary" @click="emit('scanCurrentFile')">
-        <span slot="start" class="codicon codicon-file-code"></span>
-        Scan Current File
-      </vscode-button>
       <vscode-button appearance="secondary" @click="emit('scanIacFile')">
         <span slot="start" class="codicon codicon-search"></span>
         Scan IaC File
